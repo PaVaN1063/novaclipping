@@ -15,5 +15,6 @@ export async function POST(req: Request) {
       d.prefs.studioUrl = url;
     });
   }
-  return NextResponse.json({ ok: true, key: await ensureLinkKey() });
+  await ensureLinkKey();
+  return NextResponse.json({ ok: true });
 }

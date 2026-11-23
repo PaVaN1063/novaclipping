@@ -25,3 +25,4 @@ website/netlify-proxy/deploy-netlify.bat
 *.pem
 
 .commit-msg
+studio/deploy/engine-secret.txt

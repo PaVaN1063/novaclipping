@@ -66,10 +66,20 @@ function parseHashtags(s: string) {
   ).slice(0, 30);
 }
 
-function putFile(id: string, file: File, onPct: (pct: number) => void) {
+// Videos go straight to the engine on the VM with a one-hour signed link
+// (the website itself never carries big files).
+async function uploadUrl(id: string): Promise<string> {
+  const r = await fetch(`/api/uploads/${id}/upload-url`, { cache: 'no-store' });
+  const j = (await r.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
+  if (!r.ok || !j.url) throw new Error(j.error || 'Could not start the upload.');
+  return j.url;
+}
+
+async function putFile(id: string, file: File, onPct: (pct: number) => void) {
+  const url = await uploadUrl(id);
   return new Promise<void>((resolve, reject) => {
     const x = new XMLHttpRequest();
-    x.open('PUT', `/api/uploads/${id}/file`);
+    x.open('PUT', url);
     x.setRequestHeader('Content-Type', 'application/octet-stream');
     x.upload.onprogress = (e) => {
       if (e.lengthComputable) onPct(Math.round((e.loaded / e.total) * 100));

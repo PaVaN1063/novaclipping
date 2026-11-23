@@ -202,12 +202,38 @@ async function save(db: Db) {
   }
 }
 
+// Keys never leave the engine: a copy for pages shows only whether each one is set.
+export function withoutSecrets(db: Db): Db {
+  const mark = (v: unknown) => (v ? 'set' : null);
+  const y = db.secrets.youtube;
+  const i = db.secrets.instagram;
+  const gm = db.secrets.gemini;
+  return {
+    ...db,
+    prefs: { ...db.prefs, linkKey: db.prefs.linkKey ? 'set' : null },
+    secrets: {
+      youtube: { ...y, clientSecret: mark(y.clientSecret), refreshToken: mark(y.refreshToken), accessToken: mark(y.accessToken) },
+      instagram: { ...i, token: mark(i.token) },
+      gemini: { ...gm, apiKey: mark(gm.apiKey) },
+    },
+  } as Db;
+}
+
+async function fromEngine(): Promise<Db> {
+  const { ENGINE_SECRET, ENGINE_URL } = await import('./role');
+  const r = await fetch(`${ENGINE_URL}/api/engine/db`, { headers: { 'x-engine-key': ENGINE_SECRET }, cache: 'no-store' });
+  if (!r.ok) throw new Error(`The Nova Clipping engine answered ${r.status}`);
+  return (await r.json()) as Db;
+}
+
 export async function readDb(): Promise<Db> {
+  if (process.env.NOVA_ROLE === 'web') return fromEngine();
   await (g.__novaLock ?? Promise.resolve()).catch(() => {});
   return load();
 }
 
 export function updateDb<T>(fn: (db: Db) => T | Promise<T>): Promise<T> {
+  if (process.env.NOVA_ROLE === 'web') return Promise.reject(new Error('The website copy on Netlify keeps no data; this runs on the engine.'));
   const run = (g.__novaLock ?? Promise.resolve())
     .catch(() => {})
     .then(async () => {

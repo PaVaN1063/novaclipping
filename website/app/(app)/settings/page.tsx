@@ -2,11 +2,9 @@ import { headers } from 'next/headers';
 import AiSettings from '@/components/AiSettings';
 import AutopilotSettings from '@/components/AutopilotSettings';
 import InstagramSettings from '@/components/InstagramSettings';
-import LinkKeySettings from '@/components/LinkKeySettings';
 import YoutubeSettings from '@/components/YoutubeSettings';
 import { INBOX_DIR, readDb } from '@/lib/store';
 import { redirectUri } from '@/lib/youtube';
-import { DEFAULT_STUDIO_URL } from '@/lib/studio';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,9 +56,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <AiSettings hasKey={!!db.secrets.gemini.apiKey} model={db.secrets.gemini.model || ''} />
       </div>
 
-      <div id="studio-link">
-        <LinkKeySettings linkKey={db.prefs.linkKey || ''} seenAt={db.prefs.studioSeenAt || null} studioUrl={db.prefs.studioUrl || DEFAULT_STUDIO_URL} />
-      </div>
 
       <div id="autopilot">
         <AutopilotSettings

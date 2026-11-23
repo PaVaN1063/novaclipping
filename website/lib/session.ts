@@ -2,29 +2,15 @@
 export const COOKIE = 'nova_session';
 export const MAX_AGE = 60 * 60 * 24 * 7; // 7 days, in seconds
 
-const enc = new TextEncoder();
+import { hmac, safeEqual } from './hmac';
 
 function secret(): string {
-  return process.env.AUTH_SECRET || 'nova-clipping-dev-only-secret';
+  const s = process.env.AUTH_SECRET;
+  if (!s && process.env.NODE_ENV === 'production') throw new Error('AUTH_SECRET is not set');
+  return s || 'nova-clipping-dev-only-secret';
 }
 
-function b64url(bytes: Uint8Array): string {
-  let s = '';
-  bytes.forEach((b) => (s += String.fromCharCode(b)));
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-async function sign(data: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    'raw',
-    enc.encode(secret()),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(data));
-  return b64url(new Uint8Array(sig));
-}
+const sign = (data: string) => hmac(secret(), data);
 
 export async function createSession(user: string): Promise<string> {
   const exp = Date.now() + MAX_AGE * 1000;
@@ -38,7 +24,7 @@ export async function readSession(token?: string): Promise<{ user: string } | nu
   if (cut < 0) return null;
   const payload = token.slice(0, cut);
   const sig = token.slice(cut + 1);
-  if ((await sign(payload)) !== sig) return null;
+  if (!safeEqual(await sign(payload), sig)) return null;
   const [user, exp] = payload.split('.');
   if (!user || !exp || Number(exp) < Date.now()) return null;
   return { user: decodeURIComponent(user) };

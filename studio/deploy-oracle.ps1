@@ -47,11 +47,18 @@ try {
   Push-Location $Here
   tar.exe -czf $Tgz --exclude=./output --exclude=./uploads --exclude=./.cache --exclude=./.git `
     --exclude=node_modules --exclude=__pycache__ --exclude=./deploy-oracle.log `
-    --exclude=./deploy/oracle-key-path.txt --exclude=./deploy/studio-login.txt --exclude=./deploy/website-login.txt --exclude=./osrender/target .
+    --exclude=./deploy/oracle-key-path.txt --exclude=./deploy/studio-login.txt --exclude=./deploy/website-login.txt --exclude=./deploy/engine-secret.txt --exclude=./osrender/target .
   Pop-Location
   Say ("Package: {0:N1} MB" -f ((Get-Item $Tgz).Length / 1MB))
   # The Nova Clipping website goes next to it (videos and node_modules stay here).
-  $Web = Join-Path (Split-Path -Parent $Here) "NovaClipping  Website"
+  # In the GitHub repo the website sits next to the studio; on older setups it's a sibling folder.
+  $Web = Join-Path (Split-Path -Parent $Here) "website"
+  if (-not (Test-Path $Web)) { $Web = Join-Path (Split-Path -Parent $Here) "NovaClipping  Website" }
+  $Secret = Join-Path $Here "deploy\engine-secret.txt"
+  if (Test-Path $Secret) {
+    $SecretCopy = Join-Path $env:TEMP "nova-engine-secret.txt"
+    Copy-Item $Secret $SecretCopy -Force
+  }
   $WebTgz = Join-Path $env:TEMP "nova-website.tgz"
   $Data = Join-Path $Web "data\nova.json"
   $Up = @($Tgz, (Join-Path $Here "deploy\oracle-setup.sh"))
@@ -62,6 +69,7 @@ try {
       --exclude=./inbox --exclude=./.env.local --exclude=*.log .
     Pop-Location
     $Up += $WebTgz
+    if ($SecretCopy) { $Up += $SecretCopy }
     if (Test-Path $Data) {
       $DataCopy = Join-Path $env:TEMP "nova-data.json"
       Copy-Item $Data $DataCopy -Force
@@ -86,4 +94,5 @@ finally {
   Remove-Item (Join-Path $env:TEMP "nova-studio.tgz") -Force -ErrorAction SilentlyContinue
   Remove-Item (Join-Path $env:TEMP "nova-website.tgz") -Force -ErrorAction SilentlyContinue
   Remove-Item (Join-Path $env:TEMP "nova-data.json") -Force -ErrorAction SilentlyContinue
+  Remove-Item (Join-Path $env:TEMP "nova-engine-secret.txt") -Force -ErrorAction SilentlyContinue
 }
