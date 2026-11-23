@@ -1,0 +1,25 @@
+﻿# secrets and local data: never commit
+.env
+.env.*
+!.env.example
+**/data/
+**/storage/
+**/inbox/
+**/output/
+**/uploads/
+**/.cache/
+**/node_modules/
+**/.next/
+**/.netlify/
+**/__pycache__/
+*.log
+*.tsbuildinfo
+studio/assets/nova_brand/publish.json
+studio/deploy/*login*.txt
+studio/deploy/oracle-key-path.txt
+studio/deploy/website.env
+studio/deploy/Caddyfile.live
+studio/deploy/.studio-hash
+website/netlify-proxy/deploy-netlify.bat
+*.key
+*.pem

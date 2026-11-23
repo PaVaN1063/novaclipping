@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+.netlify
+.env*.local
+*.tsbuildinfo
+
+# Local data, uploaded videos and the Autopilot inbox
+data/
+storage/
+inbox/

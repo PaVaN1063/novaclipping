@@ -1,0 +1,11 @@
+# novaclipping.netlify.app: the address people use. The website itself runs
+# on the Oracle Cloud VM (next to the Studio); Netlify forwards every request
+# there and gives the address free HTTPS.
+[build]
+  publish = "public"
+
+[[redirects]]
+  from = "/*"
+  to = "https://nova.129-225-74-22.sslip.io/:splat"
+  status = 200
+  force = true

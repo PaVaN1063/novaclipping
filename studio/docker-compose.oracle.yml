@@ -1,0 +1,52 @@
+# Nova Clipping on the Oracle Cloud VM (ARM64, Always Free).
+# Usage on the VM (deploy/oracle-setup.sh runs this for you):
+#   docker compose -f docker-compose.yml -f docker-compose.oracle.yml up -d --build
+#
+# Only Caddy faces the internet (ports 80/443):
+#   https://novaclipping.netlify.app        -> Netlify forwards to the website here
+#   https://nova.129-225-74-22.sslip.io     -> website (direct, used by Netlify and Instagram)
+#   https://studio.129-225-74-22.sslip.io   -> Studio (login required)
+#   http://129.225.74.22                    -> Studio (login required)
+services:
+  backend:
+    ports: !reset []
+    environment:
+      - MAX_CONCURRENT_JOBS=1   # 2 OCPU / 12 GB: one clipping project at a time, others wait in line
+      - NOVA_SITE_PUBLIC_URL=https://novaclipping.netlify.app
+      - NOVA_SITE_API_URL=http://website:3000
+    restart: unless-stopped
+
+  frontend:
+    ports: !reset []
+    restart: unless-stopped
+
+  renderer:
+    ports: !reset []
+    restart: unless-stopped
+
+  website:
+    build: ../novaclipping-website
+    container_name: novaclipping-website
+    env_file: ./deploy/website.env
+    volumes:
+      - ../novaclipping-website/data:/app/data
+      - ../novaclipping-website/storage:/app/storage
+      - ../novaclipping-website/inbox:/app/inbox
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    container_name: novaclipping-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile.live:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - frontend
+      - website
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
