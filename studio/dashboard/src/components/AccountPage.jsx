@@ -5,7 +5,6 @@ import { apiJson } from '../lib/api';
 import { track } from '../lib/analytics';
 import { useBackFromStripe } from '../lib/backFromStripe';
 import ApiKeysCard from './ApiKeysCard';
-import McpConnectCard from './McpConnectCard';
 import DeleteAccountCard from './DeleteAccountCard';
 import SocialAnalyticsCard from './SocialAnalyticsCard';
 import InvoicesCard from './InvoicesCard';
@@ -298,7 +297,6 @@ export default function AccountPage() {
         </div>
       )}
 
-      <McpConnectCard cloud />
 
       <ApiKeysCard />
 

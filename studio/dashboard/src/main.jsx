@@ -4,18 +4,12 @@ import './index.css'
 import Landing from './NovaLanding.jsx'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { capture as captureAttribution } from './lib/attribution'
-import PricingPage from './components/PricingPage'
 import AccountPage from './components/AccountPage'
 import LoginModal from './components/LoginModal'
-import { readPendingPlan } from './lib/pendingPlan'
-import { track } from './lib/analytics'
 import { applyConsent } from './lib/consent'
-import CookieBanner from './components/CookieBanner'
 import { captureLinkFromHash } from './lib/websiteLink'
 
 const App = lazy(() => import('./App.jsx'))
-const Legal = lazy(() => import('./Legal.jsx'))
-const OAuthConsent = lazy(() => import('./components/OAuthConsent'))
 
 function PageShell({ title, children }) {
   return (
@@ -32,35 +26,10 @@ function PageShell({ title, children }) {
   );
 }
 
-function PricingView() {
-  const { isSignedIn, loading } = useAuth();
-  // A plan picked on the landing while signed out lands here: ask for the
-  // sign-in straight away instead of a second click on the same plan.
-  const [showLogin, setShowLogin] = useState(false);
-  // Back from Stripe without paying (cancel_url of a checkout opened here):
-  // straight to the plans, not the top of the page, and the query dropped so
-  // a reload does not count it twice.
-  useEffect(() => {
-    if (!window.location.hash.includes('checkout=cancel')) { window.scrollTo(0, 0); return; }
-    track('CheckoutCanceled', { props: { back_to: 'pricing' } });
-    try { window.history.replaceState(null, '', '#/pricing'); } catch (_) { /* ignore */ }
-    requestAnimationFrame(() => document.getElementById('pricing-plans')?.scrollIntoView());
-  }, []);
-  useEffect(() => {
-    if (!loading && !isSignedIn && readPendingPlan()) setShowLogin(true);
-  }, [loading, isSignedIn]);
-  return (
-    <PageShell>
-      <PricingPage onRequireLogin={() => setShowLogin(true)} />
-      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
-    </PageShell>
-  );
-}
-
 function AccountView() {
   const { isSignedIn, loading } = useAuth();
   useEffect(() => {
-    if (!loading && !isSignedIn) window.location.hash = '#/pricing';
+    if (!loading && !isSignedIn) window.location.hash = '#app';
   }, [loading, isSignedIn]);
   return <PageShell><AccountPage /></PageShell>;
 }
@@ -107,12 +76,9 @@ function Root() {
   const resolveView = () => {
     const hash = window.location.hash || '';
     if (hash.startsWith('#/auth/')) return 'auth';       // AuthContext consumes then redirects
-    if (hash.startsWith('#/oauth/authorize')) return 'oauth';
     if (hash.startsWith('#/account')) return 'account';
     if (hash.startsWith('#/deleted')) return 'deleted';
-    if (hash.startsWith('#/pricing')) return 'pricing';
     if (hash.startsWith('#/login')) return 'login';
-    if (hash === '#legal') return 'legal';
     // The app lives at #app (and #app?tab=… deep links). Everything else,
     // including a bare / and the section anchors (#features, #pricing…) and
     // #landing, is the landing page. There is deliberately no "returning
@@ -136,11 +102,8 @@ function Root() {
     setView('app');
   };
 
-  if (view === 'legal') return <Legal />;
-  if (view === 'pricing') return <PricingView />;
   if (view === 'login') return <LoginView />;
   if (view === 'account') return <AccountView />;
-  if (view === 'oauth') return <OAuthConsent />;
   if (view === 'deleted') return <DeletedView />;
   if (view === 'auth') {
     return <div className="min-h-screen flex items-center justify-center bg-background text-zinc-400">Signing you in…</div>;
@@ -165,7 +128,6 @@ createRoot(document.getElementById('root')).render(
       <Suspense fallback={<div className="min-h-screen bg-paper flex items-center justify-center text-muted text-sm lowercase">loading…</div>}>
         <Root />
       </Suspense>
-      <CookieBanner />
     </AuthProvider>
   </StrictMode>,
 )

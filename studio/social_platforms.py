@@ -1,4 +1,4 @@
-"""The social networks OpenShorts posts clips to, through Upload-Post.
+"""The social networks Nova Clipping posts clips to, through Upload-Post.
 
 One place for the list, the display names and the per-network form fields of
 an upload, so the clip post, the AI Shorts post and Autopilot send the same
@@ -53,7 +53,7 @@ def clean(values: Iterable[str]) -> List[str]:
 
 
 def unknown(values: Iterable[str]) -> List[str]:
-    """The requested names that are not a platform OpenShorts posts to."""
+    """The requested names that are not a platform Nova Clipping posts to."""
     return [v for v in (values or []) if str(v).strip().lower() not in PLATFORMS]
 
 

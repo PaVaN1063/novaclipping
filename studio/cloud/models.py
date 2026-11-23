@@ -310,7 +310,7 @@ class AccountDeletion(Base):
 
 class OAuthClient(Base):
     """An MCP client registered through OAuth dynamic client registration
-    (RFC 7591): claude.ai, ChatGPT, Cursor... They are public clients (no
+    (RFC 7591). They are public clients (no
     secret): PKCE is what ties the authorization code to the party that
     started the flow. Rows are not user-owned — one registration serves every
     user of that client — so they survive account erasure."""

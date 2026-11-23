@@ -36,7 +36,6 @@ output/
 # Multi-agent Skills
 .agents/
 .agent/
-.claude/
 # skills/ holds third-party installs (symlinks); our own published skill is versioned
 skills/*
 !skills/openshorts/
@@ -48,7 +47,6 @@ skills-lock.json
 .worktrees
 
 # Instrucciones locales con datos de infra (repo público)
-CLAUDE.local.md
 
 # Rust build output
 osrender/target/

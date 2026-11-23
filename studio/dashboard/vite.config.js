@@ -9,20 +9,7 @@ const renderer = process.env.VITE_RENDER_TARGET || 'http://renderer:3100'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  // Nova Clipping: the upstream SEO plugin (OpenShorts marketing pages, free
-  // tools, sitemap) is switched off. vite-plugin-seo.js is left in the repo.
   plugins: [react()],
-  // The free tools (/youtube-transcript-generator and friends) are static
-  // pages emitted by seo(); their behaviour ships as small standalone entries
-  // with no React in them. vite-plugin-seo.js finds each entry's hashed file
-  // name in the bundle and adds the <script> to its page.
-  build: {
-    rollupOptions: {
-      input: {
-        main: 'index.html',
-      },
-    },
-  },
   server: {
     // Any host: the site is reached through a Cloudflare Tunnel and sits
     // behind Cloudflare Access, so the login lives there.

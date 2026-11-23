@@ -165,7 +165,7 @@ mailtrap.io
 correotemporal.org
 correotemporal.com
 
-# Audit 18-nov-2026: temp-mail fronts with OpenShorts sign-ups (0 payers)
+# Audit 18-nov-2026: temp-mail fronts seen on sign-ups (0 payers)
 10timer.com
 123mails.org
 18lover.com

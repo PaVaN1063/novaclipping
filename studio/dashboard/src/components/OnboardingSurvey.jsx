@@ -6,7 +6,7 @@ import Modal from './ui/Modal';
 // Mirror cloud/onboarding.SOURCES / GOALS / ROLES.
 const SOURCES = [
   ['google', 'Google search'],
-  ['ai_assistant', 'ChatGPT, Claude or another AI'],
+  ['ai_assistant', 'An AI assistant'],
   ['youtube', 'YouTube'],
   ['tiktok_instagram', 'TikTok or Instagram'],
   ['x_twitter', 'X (Twitter)'],

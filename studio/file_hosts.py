@@ -1,6 +1,6 @@
 """Resolvers for throwaway file hosts agents upload to when they cannot reach
-our own upload endpoint (claude.ai's sandbox could reach tmpfiles.org but not
-0x0.st, for instance).
+our own upload endpoint (some sandboxes reach tmpfiles.org but not 0x0.st,
+for instance).
 
 tmpfiles.org: the `/dl/<stamp>.<sig>/<id>/<name>` link an upload returns is
 signed with a short-lived stamp. Once stale it 302s to the HTML page
@@ -59,6 +59,6 @@ def resolve(url: str) -> str:
 
 
 def _fetch(url: str) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (OpenShorts)"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Nova Clipping)"})
     with urllib.request.urlopen(req, timeout=20) as r:
         return r.read(200_000).decode("utf-8", "ignore")

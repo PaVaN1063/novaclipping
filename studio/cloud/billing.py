@@ -145,7 +145,7 @@ async def list_plans(response: Response):
 # a full refund of a plan that was already used. Kept to one short sentence:
 # it sits right above the pay button, for every buyer, not only EU ones.
 CONSENT_MESSAGE = (
-    "I accept the Terms and Privacy Policy and ask OpenShorts to start now. "
+    "I accept the Terms and Privacy Policy and ask Nova Clipping to start now. "
     "EU: if you withdraw within 14 days, minutes already used are charged."
 )
 
