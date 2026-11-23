@@ -3,3 +3,7 @@
   base = "website"
   command = "npm run build"
   publish = ".next"
+
+# Netlify's Next.js runtime (server pages, API routes, middleware).
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
