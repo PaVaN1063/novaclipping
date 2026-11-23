@@ -23,3 +23,5 @@ studio/deploy/.studio-hash
 website/netlify-proxy/deploy-netlify.bat
 *.key
 *.pem
+
+.commit-msg

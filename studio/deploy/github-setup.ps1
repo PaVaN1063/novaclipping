@@ -18,7 +18,7 @@ if (Test-Path (Join-Path $Root ".git")) { Say "ERROR: $Root already has a Git re
 Say "Copying the studio..."
 robocopy $Studio (Join-Path $Root "studio") /E /NFL /NDL /NJH /NJS /NP `
   /XD output uploads .cache .config .hallmark .github node_modules __pycache__ .git target `
-  /XF publish.json deploy-oracle.log github-setup.log oracle-key-path.txt studio-login.txt website-login.txt website.env CLAUDE.md *.pyc | Out-Null
+  /XF publish.json deploy-oracle.log github-setup.log oracle-key-path.txt studio-login.txt website-login.txt website.env *.pyc | Out-Null
 Say "Copying the website..."
 robocopy $Web (Join-Path $Root "website") /E /NFL /NDL /NJH /NJS /NP `
   /XD node_modules .next data storage inbox .netlify `

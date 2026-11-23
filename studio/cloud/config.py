@@ -333,7 +333,7 @@ class Settings:
     @property
     def email_from(self) -> str:
         # Namecheap requires the From to be the authenticated mailbox.
-        return os.environ.get("EMAIL_FROM") or (f"OpenShorts <{self.smtp_user}>" if self.smtp_user else "OpenShorts")
+        return os.environ.get("EMAIL_FROM") or (f"Nova Clipping <{self.smtp_user}>" if self.smtp_user else "Nova Clipping")
 
     @property
     def admin_email(self) -> str:
@@ -403,7 +403,7 @@ class Settings:
 
     @property
     def agentledger_treasury_id(self) -> str:
-        # The Stripe Connect treasury in AgentLedger that holds OpenShorts' customers.
+        # The Stripe Connect treasury in AgentLedger that holds Nova Clipping' customers.
         return os.environ.get("AGENTLEDGER_TREASURY_ID", "720d3b70-3806-4c59-8729-2495b489a771")
 
     # Managed provider keys (server-owned, only handed to entitled users)

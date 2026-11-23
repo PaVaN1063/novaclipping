@@ -71,8 +71,8 @@ CANCELLABLE_STATES = ("active", "trialing", "past_due", config.ON_HOLD)
 
 MAX_TEXT = 2000
 
-# The Stripe coupon offered before a cancel (env, like every coupon id; see
-# CLAUDE.md). Unset turns the offer off and the flow is reason -> review -> cancel.
+# The Stripe coupon offered before a cancel (env, like every coupon id).
+# Unset turns the offer off and the flow is reason -> review -> cancel.
 RETENTION_COUPON = os.environ.get("RETENTION_COUPON_ID", "").strip()
 
 

@@ -1,8 +1,8 @@
 """Upload-Post white-label profiles for managed users.
 
-Each OpenShorts user maps to one Upload-Post profile (a container for their
+Each Nova Clipping user maps to one Upload-Post profile (a container for their
 connected socials). We create it lazily and generate branded connection links so
-the user connects their socials on a page that looks like OpenShorts.
+the user connects their socials on a page that looks like Nova Clipping.
 
 Docs: https://docs.upload-post.com/guides/user-profile-integration
 """
@@ -32,7 +32,7 @@ def connect_description(platforms) -> str:
     """The connect page's subtitle. Twitch is read-only there, so it is named
     as a source to clip from, never as somewhere shorts get posted."""
     text = ("Link TikTok, Instagram, YouTube, Facebook, LinkedIn, Threads and Bluesky "
-            "to post your shorts directly from OpenShorts.")
+            "to post your shorts directly from Nova Clipping.")
     if "twitch" in platforms:
         text += " Link Twitch so Autopilot can clip your past broadcasts (read-only)."
     return text
@@ -119,7 +119,7 @@ async def get_connect_url(username: str, return_to: str = "account") -> str:
         "connectTitle": "Connect your social accounts",
         "connectDescription": connect_description(platforms),
         "redirectUrl": f"{settings.frontend_url}{back}",
-        "redirectButtonText": "Back to OpenShorts",
+        "redirectButtonText": "Back to Nova Clipping",
         "platforms": platforms,
         "showCalendar": True,  # keep the scheduling calendar available in the page
     }
@@ -138,7 +138,7 @@ async def profile_token(username: str):
     """A short-lived token scoped to one profile, or None.
 
     Upload-Post's history endpoint filters by profile only when called with a
-    profile JWT; with the managed key it returns every OpenShorts user's posts.
+    profile JWT; with the managed key it returns every Nova Clipping user's posts.
     The token rides in generate-jwt's access_url.
     """
     from urllib.parse import parse_qs, urlparse

@@ -21,7 +21,6 @@ import UsageMeter from './components/UsageMeter';
 import TopUpModal from './components/TopUpModal';
 import WatermarkModal, { watermarkNoticeDismissed } from './components/WatermarkModal';
 import { getApiUrl } from './config';
-import StarBanner from './components/StarBanner';
 import NovaWatermarkCard from './components/NovaWatermarkCard';
 import PlanChoiceModal from './components/PlanChoiceModal';
 import ClipTutorial from './components/ClipTutorial';
@@ -44,7 +43,7 @@ import { JobPollError, pollFailureAction } from './lib/jobPoll';
 
 // Enhanced "Encryption" using XOR + Base64 with a Salt
 // This is better than plain Base64 but still client-side.
-const SECRET_KEY = import.meta.env.VITE_ENCRYPTION_KEY || "OpenShorts-Static-Salt-Change-Me";
+const SECRET_KEY = import.meta.env.VITE_ENCRYPTION_KEY || "Nova Clipping-Static-Salt-Change-Me";
 const ENCRYPTION_PREFIX = "ENC:";
 
 const encrypt = (text) => {
@@ -1183,7 +1182,7 @@ function App() {
   // Included in the plan (fully managed, no keys): Clip Generator + YouTube Studio.
   // Advanced (bring your own fal.ai + ElevenLabs keys): AI Shorts + AI Agent.
   const INCLUDED_TOOL_TABS = ['dashboard', 'thumbnails'];
-  const ADVANCED_TOOL_TABS = ['saasshorts', 'ai-agent'];
+  const ADVANCED_TOOL_TABS = ['saasshorts'];
   const TOOL_NAMES = { dashboard: 'the Clip Generator', thumbnails: 'the YouTube Studio' };
   const gateThisTab = needsPlan && INCLUDED_TOOL_TABS.includes(activeTab);      // included tool, no plan yet
   const advancedThisTab = billingEnabled && ADVANCED_TOOL_TABS.includes(activeTab); // BYOK-notice tools
@@ -2086,122 +2085,6 @@ function App() {
             <SaaShortsTab geminiApiKey={apiKey} elevenLabsKey={elevenLabsKey} falKey={falKey} uploadPostKey={uploadPostKey} uploadUserId={uploadUserId} managed={isManaged} />
           )}
 
-          {/* View: AI Agent */}
-          {activeTab === 'ai-agent' && (
-            <div className="h-full overflow-y-auto custom-scrollbar p-4 sm:p-6 md:p-10 animate-fade">
-              <div className="max-w-4xl mx-auto space-y-8">
-
-                {/* Header */}
-                <div className="space-y-3">
-                  <p className="eyebrow flex items-center gap-2">
-                    <Bot size={12} /> 03 · AI AGENT · AUTONOMOUS SKILL
-                  </p>
-                  <h1 className="font-display lowercase text-3xl md:text-4xl text-ink">
-                    Your Personal Clipping Team
-                  </h1>
-                  <p className="text-muted text-base md:text-lg leading-relaxed max-w-2xl">
-                    Drop your videos in a folder and a team of AI clippers picks the viral moments, edits them, and queues them for your approval — like having a 24/7 short-form editing crew on autopilot.
-                  </p>
-                </div>
-
-                {/* Mobile-format warning */}
-                <div className="px-4 py-3 rounded-card border border-rule bg-paper2 flex items-start gap-3">
-                  <Smartphone size={18} className="text-warn shrink-0 mt-0.5" />
-                  <div className="text-sm text-ink2">
-                    <p className="font-medium text-ink mb-1">Upload videos already in vertical (9:16) mobile format.</p>
-                    <p className="text-muted leading-relaxed">
-                      The agent does not reframe horizontal footage. Make sure every source video is shot or pre-cropped to mobile/portrait format before dropping it into the input folder.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Workflow */}
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="card p-5 space-y-2">
-                    <div className="w-10 h-10 rounded-input bg-paper3 flex items-center justify-center">
-                      <Upload size={18} className="text-brass" />
-                    </div>
-                    <h3 className="font-medium text-ink lowercase">1. Drop your videos</h3>
-                    <p className="text-xs text-muted leading-relaxed">
-                      Put your long-form vertical footage in the watched folder. The skill picks one video per run.
-                    </p>
-                  </div>
-
-                  <div className="card p-5 space-y-2">
-                    <div className="w-10 h-10 rounded-input bg-paper3 flex items-center justify-center">
-                      <Users size={18} className="text-brass" />
-                    </div>
-                    <h3 className="font-medium text-ink lowercase">2. AI clippers work</h3>
-                    <p className="text-xs text-muted leading-relaxed">
-                      Whisper transcribes, Gemini 3 Flash spots viral beats, FFmpeg cuts each clip and adds a hook overlay.
-                    </p>
-                  </div>
-
-                  <div className="card p-5 space-y-2">
-                    <div className="w-10 h-10 rounded-input bg-paper3 flex items-center justify-center">
-                      <CheckCircle2 size={18} className="text-brass" />
-                    </div>
-                    <h3 className="font-medium text-ink lowercase">3. You validate, it ships</h3>
-                    <p className="text-xs text-muted leading-relaxed">
-                      Approve the candidates you like and the skill auto-publishes them to TikTok, Reels and YouTube Shorts via Upload-Post.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Repo CTA */}
-                <div className="card p-6 md:p-8 space-y-5">
-                  <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div>
-                      <h2 className="font-display lowercase text-xl text-ink mb-1">skill-autoshorts</h2>
-                      <p className="text-sm text-muted">
-                        The Claude Code skill that powers this workflow. Install it once and trigger it whenever you want a fresh batch of clips.
-                      </p>
-                    </div>
-                    <a
-                      href="https://github.com/mutonby/skill-autoshorts"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-primary py-2 px-4 text-sm shrink-0"
-                    >
-                      View on GitHub <ExternalLink size={14} />
-                    </a>
-                  </div>
-
-                  <div className="bg-paper border border-rule rounded-card p-4 font-mono text-xs text-ink2 flex items-center justify-between gap-3">
-                    <span className="truncate">git clone https://github.com/mutonby/skill-autoshorts</span>
-                    <button
-                      onClick={() => navigator.clipboard.writeText('git clone https://github.com/mutonby/skill-autoshorts')}
-                      className="text-muted hover:text-ink transition-colors shrink-0"
-                      title="Copy"
-                    >
-                      <Copy size={14} />
-                    </button>
-                  </div>
-
-                  <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                    <div className="flex items-start gap-2 text-ink2">
-                      <Check size={16} className="text-brass shrink-0 mt-0.5" />
-                      <span>Daily batch — picks one long video per run</span>
-                    </div>
-                    <div className="flex items-start gap-2 text-ink2">
-                      <Check size={16} className="text-brass shrink-0 mt-0.5" />
-                      <span>Whisper transcription with word-level timing</span>
-                    </div>
-                    <div className="flex items-start gap-2 text-ink2">
-                      <Check size={16} className="text-brass shrink-0 mt-0.5" />
-                      <span>Gemini 3 Flash multimodal moment detection</span>
-                    </div>
-                    <div className="flex items-start gap-2 text-ink2">
-                      <Check size={16} className="text-brass shrink-0 mt-0.5" />
-                      <span>Auto-publish to TikTok, Reels & YouTube Shorts</span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          )}
-
           {/* View: Autopilot */}
           {activeTab === 'autopilot' && (
             <div className="h-full overflow-y-auto custom-scrollbar animate-fade">
@@ -2283,20 +2166,6 @@ function App() {
                   <p className="text-muted text-[15px] sm:text-lg leading-snug sm:leading-normal max-w-sm sm:max-w-none mx-auto">
                     Drop your long-form video below to instantly generate viral clips with AI.
                   </p>
-                  {/* The same pipeline is an MCP server: point people at the
-                      one place that explains how to drive it from an agent. */}
-                  {!tutorialLock && (
-                  <p className="text-xs text-muted">
-                    Or let an agent do it:{' '}
-                    <a
-                      href={billingEnabled ? '#/account' : '#app'}
-                      onClick={(e) => { if (!billingEnabled) { e.preventDefault(); goToTab('settings'); } }}
-                      className="text-ink2 underline underline-offset-2 hover:text-brass transition-colors"
-                    >
-                      connect Claude, ChatGPT or n8n →
-                    </a>
-                  </p>
-                  )}
                 </div>
 
                 <MediaInput onProcess={handleProcess} isProcessing={status === 'processing'} />
@@ -2413,7 +2282,7 @@ function App() {
                     with nothing to do, so this is where the one star ask goes. */}
                 {status === 'processing' && (
                   <div className="my-3">
-                    <StarBanner message="Got a minute while this renders?" />
+                    
                   </div>
                 )}
 

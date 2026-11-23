@@ -52,9 +52,7 @@ export default function ApiKeysCard() {
         <KeyRound size={16} className="text-brass" /> API keys
       </h3>
       <p className="text-muted text-sm mb-4">
-        Keys for CLI clients, scripts and the REST API (see &ldquo;Connect an agent&rdquo; above).
-        Apps connected through claude.ai or ChatGPT show up here too: revoking a key disconnects
-        that app. Keys use your plan&apos;s minutes.
+        Keys for scripts and the REST API. Revoking a key disconnects whatever uses it.
       </p>
 
       {freshKey && (
@@ -101,7 +99,7 @@ export default function ApiKeysCard() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') createKey(); }}
-              placeholder="Key name (e.g. n8n, claude)"
+              placeholder="Key name (e.g. my script)"
               className="input-field flex-1 text-sm"
               maxLength={60}
             />

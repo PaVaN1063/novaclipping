@@ -1,4 +1,4 @@
-"""Optional cloud (paid / managed-keys) mode for OpenShorts.
+"""Optional cloud (paid / managed-keys) mode for Nova Clipping.
 
 This whole package is dormant unless the ``BILLING_ENABLED`` env flag is set.
 ``app.py`` imports it only in that case, so self-hosters never need the extra
@@ -31,7 +31,7 @@ def setup_sync(app):
     app.add_middleware(SessionMiddleware, secret_key=settings.jwt_secret)
 
     from . import (auth, oauth, billing, social_profiles, videos, api_keys,
-                   account, mcp_oauth, marketing, autopilot, lifecycle, cancellation,  # noqa: F401
+                   account, marketing, autopilot, lifecycle, cancellation,  # noqa: F401
                    onboarding, support_ops)
     oauth.register()
     billing._init_stripe()
@@ -45,7 +45,6 @@ def setup_sync(app):
     app.include_router(social_profiles.router)
     app.include_router(videos.router)
     app.include_router(api_keys.router)
-    app.include_router(mcp_oauth.router)
     app.include_router(account.router)
     # Autopilot: clip new videos from the user's connected YouTube channel.
     app.include_router(autopilot.router)

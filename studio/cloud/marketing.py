@@ -1,6 +1,6 @@
 """Opting out of the emails we send that are commercial communications.
 
-Most messages OpenShorts sends are service notices: a sign-in link, "your
+Most messages Nova Clipping sends are service notices: a sign-in link, "your
 clips are ready", "your free clips are deleted tomorrow", "your account has been
 deleted". ``send_out_of_minutes_email`` and the lifecycle emails
 (cloud/lifecycle.py) are not — they sell a plan, which makes them a
