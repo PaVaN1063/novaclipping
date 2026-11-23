@@ -26,7 +26,7 @@ const TICK_MS = 20_000;
 const MAX_ATTEMPTS = 3;
 const VIDEO = /\.(mp4|mov|webm|mkv|m4v)$/i;
 // Bump when the worker changes, so a running dev server switches to the new code.
-const WORKER_VERSION = 5;
+const WORKER_VERSION = 6;
 
 // First free time slot: after the last scheduled post (plus the gap), and at least ~30 min from now, on the hour.
 export function nextSlot(db: Db, gapHours: number) {
@@ -195,13 +195,13 @@ async function setAi(clipId: string, patch: Partial<AiResult>) {
 // Step 1: AI for clips whose file has arrived.
 async function runAi() {
   const db = await readDb();
-  const todo = db.clips.filter((c) => c.storedAs && c.ai?.status === 'pending');
+  const todo = db.clips.filter((c) => (c.storedAs || c.filePath) && c.ai?.status === 'pending');
   for (const clip of todo) {
     await setAi(clip.id, { status: 'working', error: null });
     try {
       const fresh = await readDb();
       const out = await analyzeClip(fresh, {
-        filePath: path.join(STORAGE_DIR, clip.storedAs!),
+        filePath: clip.filePath || path.join(STORAGE_DIR, clip.storedAs!),
         fileName: clip.fileName,
         channel: fresh.connections.youtube.account || '@theclipdose.official',
       });
@@ -235,7 +235,8 @@ async function runPosts() {
     }
 
     const batch = fresh.batches.find((b) => b.id === current.batchId);
-    if (!clip || !batch || !clip.storedAs) {
+    const file = clip?.filePath || (clip?.storedAs ? path.join(STORAGE_DIR, clip.storedAs) : null);
+    if (!clip || !batch || !file) {
       await setPost(current.id, { status: 'failed', error: 'The clip file is missing.' });
       continue;
     }
@@ -246,7 +247,7 @@ async function runPosts() {
         post: current,
         clip,
         batch,
-        filePath: path.join(STORAGE_DIR, clip.storedAs),
+        filePath: file,
       });
       await setPost(current.id, { status: 'done', externalId: result.externalId, externalUrl: result.url ?? null, error: null });
       await cleanup(clip.id);
@@ -272,7 +273,13 @@ export async function tick() {
     });
     await runAi();
     await runPosts();
-    if (!info().lastError?.startsWith('Autopilot')) info().lastError = null;
+    // Studio: clipping projects, the clip library and its rules.
+    const { runStudio } = await import('./studio-engine');
+    await runStudio().catch((e) => {
+      info().lastError = `Studio: ${e instanceof Error ? e.message : String(e)}`;
+      console.error('[nova-worker] studio', e);
+    });
+    if (!info().lastError?.startsWith('Autopilot') && !info().lastError?.startsWith('Studio')) info().lastError = null;
   } catch (e) {
     info().lastError = e instanceof Error ? e.message : String(e);
     console.error('[nova-worker]', e);

@@ -19,9 +19,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const db = await readDb();
   const clip = db.clips.find((c) => c.id === id);
-  if (!clip?.storedAs) return new Response('Not found', { status: 404 });
-
-  const file = path.join(STORAGE_DIR, clip.storedAs);
+  const file = clip?.filePath || (clip?.storedAs ? path.join(STORAGE_DIR, clip.storedAs) : null);
+  if (!file) return new Response('Not found', { status: 404 });
   const st = await fs.stat(file).catch(() => null);
   if (!st) return new Response('Not found', { status: 404 });
 

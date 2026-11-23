@@ -12,7 +12,7 @@ export const config = {
 const PUBLIC = new Set(['/', '/login', '/api/auth/google/start', '/api/auth/google/callback', '/api/auth/logout', '/api/health']);
 
 // Big files skip the web copy and go to the engine directly with a signed link.
-const DIRECT = /^\/api\/(uploads|clips)\/[A-Za-z0-9]+\/file$/;
+const DIRECT = /^\/api\/((uploads|clips)\/[A-Za-z0-9]+\/file|library\/[A-Za-z0-9]+\/(file|preview))$/;
 
 const deny = (status = 401, error = 'Please sign in.') => NextResponse.json({ ok: false, error }, { status });
 

@@ -5,13 +5,16 @@
 # Only Caddy faces the internet (ports 80/443):
 #   https://novaclipping.netlify.app        -> Netlify forwards to the website here
 #   https://nova.129-225-74-22.sslip.io     -> website (direct, used by Netlify and Instagram)
-#   https://studio.129-225-74-22.sslip.io   -> Studio (login required)
-#   http://129.225.74.22                    -> Studio (login required)
+# The Studio's own screens are not public any more: the website's /studio
+# page drives the clipping engine from inside the VM.
 services:
   backend:
     ports: !reset []
     environment:
-      - MAX_CONCURRENT_JOBS=1   # 2 OCPU / 12 GB: one clipping project at a time, others wait in line
+      - MAX_CONCURRENT_JOBS=3   # the website decides how many run at once (Settings → Studio automation)
+      # Clips stay until the website deletes them (its 7-day rules); source videos go after a day.
+      - JOB_RETENTION_SECONDS=315360000
+      - SOURCE_RETENTION_SECONDS=86400
       - NOVA_SITE_PUBLIC_URL=https://novaclipping.netlify.app
       - NOVA_SITE_API_URL=http://website:3000
     restart: unless-stopped
@@ -28,7 +31,11 @@ services:
     build: ../novaclipping-website
     container_name: novaclipping-website
     env_file: ./deploy/website.env
+    environment:
+      - STUDIO_API_URL=http://backend:8000
+      - STUDIO_OUTPUT=/studio-output
     volumes:
+      - ./output:/studio-output
       - ../novaclipping-website/data:/app/data
       - ../novaclipping-website/storage:/app/storage
       - ../novaclipping-website/inbox:/app/inbox
