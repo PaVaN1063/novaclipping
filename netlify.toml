@@ -1,0 +1,5 @@
+# Netlify: build and deploy the website/ folder from the main branch.
+[build]
+  base = "website"
+  command = "npm run build"
+  publish = ".next"

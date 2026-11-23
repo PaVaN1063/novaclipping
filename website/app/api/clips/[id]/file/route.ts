@@ -4,7 +4,7 @@ import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'stream/web';
 import { NextResponse } from 'next/server';
-import { badRequest, currentUser, unauthorized } from '@/lib/auth';
+import { badRequest, currentUser, signedLink, unauthorized } from '@/lib/auth';
 import { startStatus } from '@/lib/platforms';
 import { STORAGE_DIR, readDb, updateDb } from '@/lib/store';
 
@@ -14,7 +14,7 @@ const EXT = /^\.(mp4|mov|webm|mkv|m4v)$/;
 
 // Receive one clip's video file and stream it to storage/clips/.
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await currentUser())) return unauthorized();
+  if (!(await currentUser()) && !(await signedLink(req))) return unauthorized();
   const { id } = await params;
 
   const db = await readDb();

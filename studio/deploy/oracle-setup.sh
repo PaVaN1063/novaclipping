@@ -87,6 +87,16 @@ ENV
   printf 'website: %s\nuser: pavan\npassword: %s\n' "$SITE_PUBLIC" "$WPASS" > deploy/website-login.txt
   chmod 600 deploy/website-login.txt
 fi
+# Engine settings (added to older website.env files too).
+ENGINE_SECRET_NEW=$(cat ~/nova-engine-secret.txt 2>/dev/null || true)
+rm -f ~/nova-engine-secret.txt
+setenv() { grep -q "^$1=" deploy/website.env && sed -i "s|^$1=.*|$1=$2|" deploy/website.env || echo "$1=$2" >> deploy/website.env; }
+setenv NOVA_ROLE engine
+setenv PUBLIC_ENGINE_URL "$SITE_DIRECT"
+setenv APP_URL "$SITE_PUBLIC"
+[ -n "$ENGINE_SECRET_NEW" ] && setenv ENGINE_SECRET "$ENGINE_SECRET_NEW"
+grep -q '^ENGINE_SECRET=' deploy/website.env || echo "WARNING: ENGINE_SECRET missing; the website on Netlify can't reach the engine"
+
 # The Studio posts through the website right here on the VM.
 if [ -f assets/nova_brand/publish.json ]; then
   python3 - assets/nova_brand/publish.json "$SITE_PUBLIC" <<'PY'
