@@ -3,7 +3,7 @@ FROM node:20-bookworm-slim
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN npm install --no-audit --no-fund
 COPY . .
 RUN npm run build
 ENV NODE_ENV=production PORT=3000
