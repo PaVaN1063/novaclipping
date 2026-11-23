@@ -17,6 +17,9 @@ function greeting() {
 
 export default async function Dashboard() {
   const db = await readDb();
+  const clipping = db.jobs.filter((j) => j.status === 'sending' || j.status === 'clipping').length;
+  const needsYou = db.library.filter((c) => c.status === 'confirm' || c.status === 'approval').length;
+  const readyCount = db.library.filter((c) => c.status === 'ready').length;
   const now = Date.now();
   const week = now + 7 * 86400000;
   const clipById = new Map(db.clips.map((c) => [c.id, c]));
@@ -142,10 +145,14 @@ export default async function Dashboard() {
 
           <section className="card" style={{ gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="dot" style={{ background: 'var(--warn)' }} />
-              <h2 style={{ fontSize: 18 }}>Studio server</h2>
+              <span className="dot" style={{ background: needsYou ? 'var(--accent)' : 'var(--ok)' }} />
+              <h2 style={{ fontSize: 18 }}>Studio</h2>
             </div>
-            <p className="body" style={{ fontSize: 14 }}>The clipping tool will run on your Oracle Cloud VM. It’s not set up yet, so Studio is offline — bulk upload works without it.</p>
+            <p className="body" style={{ fontSize: 14 }}>
+              {clipping ? `${clipping} project${clipping > 1 ? 's' : ''} clipping now. ` : ''}
+              {needsYou ? `${needsYou} clip${needsYou > 1 ? 's' : ''} waiting for you.` : 'Nothing waiting for you.'}
+              {readyCount ? ` ${readyCount} ready to post.` : ''}
+            </p>
             <Link href="/studio" style={{ fontSize: 14 }}>Open Studio</Link>
           </section>
         </div>

@@ -51,7 +51,7 @@ sudo chmod -R a+rwX output uploads .cache assets
 WEB=~/novaclipping-website
 SITE_PUBLIC=https://novaclipping.netlify.app
 SITE_DIRECT=https://nova.129-225-74-22.sslip.io
-STUDIO_URL=https://studio.129-225-74-22.sslip.io
+STUDIO_URL=https://novaclipping.netlify.app/studio
 if [ -f ~/nova-website.tgz ]; then
   mkdir -p "$WEB"
   tar -xzf ~/nova-website.tgz -C "$WEB"
@@ -127,23 +127,6 @@ nova.129-225-74-22.sslip.io {
 	reverse_proxy website:3000
 }
 
-# Studio, with its own login
-studio.129-225-74-22.sslip.io {
-	encode gzip
-	basic_auth {
-		nova $HASH
-	}
-	reverse_proxy frontend:5173
-}
-
-# Studio by plain IP address
-http://:80 {
-	encode gzip
-	basic_auth {
-		nova $HASH
-	}
-	reverse_proxy frontend:5173
-}
 CADDY
 
 # 6. Build and start.
@@ -155,4 +138,4 @@ IP=$(curl -s --max-time 5 https://api.ipify.org || echo "129.225.74.22")
 echo
 echo "=== DONE"
 echo "=== Website: https://novaclipping.netlify.app   (login: deploy/website-login.txt)"
-echo "=== Studio:  https://studio.129-225-74-22.sslip.io/#app  or  http://$IP/#app  (login: deploy/studio-login.txt)"
+echo "=== Studio:  https://novaclipping.netlify.app/studio"

@@ -1,5 +1,7 @@
 # Nova Clipping website, production server (Oracle Cloud VM, ARM64).
 FROM node:20-bookworm-slim
+# ffmpeg makes the small preview copies of clips
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./

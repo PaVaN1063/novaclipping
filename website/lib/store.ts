@@ -54,6 +54,8 @@ export type Clip = {
   title: string;
   titleEdited?: boolean; // you typed your own title, so the AI title isn't used
   storedAs: string | null;
+  filePath?: string | null; // a Studio clip: its file stays in the Studio's folder
+  libraryId?: string | null;
   ai?: AiResult;
   createdAt: string;
 };
@@ -117,8 +119,76 @@ export type YoutubeSecrets = {
   channelId: string | null;
 };
 
+// ---- Studio: projects, clipping jobs and the clip library ------------------
+
+export type Project = { id: string; name: string; createdAt: string };
+
+export type JobStatus = 'waiting' | 'sending' | 'clipping' | 'done' | 'failed';
+export type StudioJob = {
+  id: string;
+  projectId: string;
+  source: { kind: 'url'; url: string } | { kind: 'file'; uploadId: string; fileName: string };
+  studioJobId: string | null; // the clipping engine's own id
+  status: JobStatus;
+  progress: number; // 0–100
+  stage: string | null; // what the engine is doing right now, in plain words
+  error: string | null;
+  clipCount: number;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+// Where a finished clip stands.
+//  confirm   viral 70–89: asks "post this?" (one tap)
+//  approval  viral 50–69: waits for you to approve it
+//  ready     approved, or automation off: post or schedule it yourself
+//  scheduled waiting for its YouTube / Instagram time
+//  posted    went out; deleted 7 days later (files only)
+//  on_hold   viral under 50, or not posted within 7 days; never auto-deleted
+//  deleted   files gone, the record stays until you remove it
+export type LibStatus = 'confirm' | 'approval' | 'ready' | 'scheduled' | 'posted' | 'on_hold' | 'deleted';
+export type LibraryClip = {
+  id: string;
+  projectId: string;
+  jobId: string;
+  studioJobId: string;
+  index: number;
+  title: string;
+  description: string;
+  hashtags: string[];
+  file: string | null; // full-quality original on the VM
+  preview: string | null; // small copy for watching in the browser
+  size: number;
+  duration: number | null;
+  viralScore: number; // 0–100 when it was made
+  status: LibStatus;
+  statusAt: string;
+  createdAt: string;
+  scheduledFor: string | null;
+  postedAt: string | null;
+  postedTo: Platform[];
+  postClipId: string | null; // the clip in the posting queue (batches)
+  autoPosted: boolean;
+};
+
+export type StudioPrefs = {
+  autoPost: boolean; // 90+ goes out by itself
+  platforms: Platform[]; // where approved / auto clips go
+  gapHours: number; // space between posts
+  maxParallel: number; // clipping projects at the same time
+  storageLimitGb: number;
+  lastReminderAt: string | null; // the "delete old posted clips?" dialog
+  lastStorageMailAt: string | null;
+  storageFull: boolean;
+};
+
 export type Db = {
   version: 1;
+  projects: Project[];
+  jobs: StudioJob[];
+  library: LibraryClip[];
+  studio: StudioPrefs;
   batches: Batch[];
   clips: Clip[];
   posts: Post[];
@@ -130,6 +200,7 @@ export type Db = {
     youtube: YoutubeSecrets;
     instagram: { token: string | null; userId: string | null; savedAt: number | null; expiresAt: number | null };
     gemini: { apiKey: string | null; model: string | null; updatedAt?: string | null };
+    mail: { user: string | null; appPassword: string | null; savedAt: string | null };
   };
 };
 
@@ -147,6 +218,10 @@ function empty(): Db {
     clips: [],
     posts: [],
     uploads: [],
+    projects: [],
+    jobs: [],
+    library: [],
+    studio: { autoPost: true, platforms: ['youtube'], gapHours: 3, maxParallel: 2, storageLimitGb: 140, lastReminderAt: null, lastStorageMailAt: null, storageFull: false },
     autopilot: { enabled: false, platforms: ['youtube'], mode: 'schedule', gapHours: 3, caption: '' },
     prefs: { deleteAfterPost: false, publicUrl: null },
     connections: Object.fromEntries(PLATFORM_IDS.map((id) => [id, { ...off }])) as Record<Platform, Connection>,
@@ -154,6 +229,7 @@ function empty(): Db {
       youtube: { clientId: null, clientSecret: null, refreshToken: null, accessToken: null, expiresAt: null, channelId: null },
       instagram: { token: null, userId: null, savedAt: null, expiresAt: null },
       gemini: { apiKey: null, model: null },
+      mail: { user: null, appPassword: null, savedAt: null },
     },
   };
 }
@@ -177,10 +253,12 @@ async function load(): Promise<Db> {
       connections: { ...base.connections, ...(db.connections || {}) },
       autopilot: { ...base.autopilot, ...(db.autopilot || {}) },
       prefs: { ...base.prefs, ...(db.prefs || {}) },
+      studio: { ...base.studio, ...(db.studio || {}) },
       secrets: {
         youtube: { ...base.secrets.youtube, ...(db.secrets?.youtube || {}) },
         instagram: { ...base.secrets.instagram, ...(db.secrets?.instagram || {}) },
         gemini: { ...base.secrets.gemini, ...(db.secrets?.gemini || {}) },
+        mail: { ...base.secrets.mail, ...(db.secrets?.mail || {}) },
       },
     } as Db;
   } catch (e) {
@@ -215,7 +293,10 @@ export function withoutSecrets(db: Db): Db {
       youtube: { ...y, clientSecret: mark(y.clientSecret), refreshToken: mark(y.refreshToken), accessToken: mark(y.accessToken) },
       instagram: { ...i, token: mark(i.token) },
       gemini: { ...gm, apiKey: mark(gm.apiKey) },
+      mail: { ...db.secrets.mail, appPassword: mark(db.secrets.mail.appPassword) },
     },
+    // file locations on the VM stay on the VM
+    library: db.library.map((c) => ({ ...c, file: c.file ? 'set' : null, preview: c.preview ? 'set' : null })),
   } as Db;
 }
 

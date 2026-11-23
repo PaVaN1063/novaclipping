@@ -1,6 +1,8 @@
 import { headers } from 'next/headers';
 import AiSettings from '@/components/AiSettings';
 import AutopilotSettings from '@/components/AutopilotSettings';
+import AutomationSettings from '@/components/AutomationSettings';
+import MailSettings from '@/components/MailSettings';
 import InstagramSettings from '@/components/InstagramSettings';
 import YoutubeSettings from '@/components/YoutubeSettings';
 import { INBOX_DIR, readDb } from '@/lib/store';
@@ -56,6 +58,20 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <AiSettings hasKey={!!db.secrets.gemini.apiKey} model={db.secrets.gemini.model || ''} />
       </div>
 
+
+      <div id="automation">
+        <AutomationSettings
+          autoPost={db.studio.autoPost}
+          platforms={db.studio.platforms}
+          gapHours={db.studio.gapHours}
+          maxParallel={db.studio.maxParallel}
+          storageLimitGb={db.studio.storageLimitGb}
+        />
+      </div>
+
+      <div id="mail">
+        <MailSettings user={db.secrets.mail.user || ''} hasPassword={!!db.secrets.mail.appPassword} />
+      </div>
 
       <div id="autopilot">
         <AutopilotSettings
