@@ -350,7 +350,7 @@ export async function runStudio() {
     }
     if (st.status === 'failed') {
       const last = (st.logs || []).slice(-1)[0] || 'Clipping failed.';
-      await updateDb((d) => { const j = d.jobs.find((x) => x.id === job.id); if (j) { j.status = 'failed'; j.error = last.replace(/^[^\w]+/, '').slice(0, 300); j.finishedAt = new Date().toISOString(); } });
+      await updateDb((d) => { const j = d.jobs.find((x) => x.id === job.id); if (j) { j.status = 'failed'; j.error = friendlyError(st.logs || [], last); j.finishedAt = new Date().toISOString(); } });
       continue;
     }
     if (st.status !== 'completed') {
@@ -447,4 +447,14 @@ export async function deleteClipFiles(ids: string[]) {
   });
   for (const f of files) await fs.unlink(f).catch(() => {});
   g.__novaStorage = undefined;
+}
+
+// Turn the engine's last log lines into a message the Studio can show.
+function friendlyError(logs: string[], last: string): string {
+  const text = logs.slice(-60).join('\n');
+  if (/confirm you.?re not a bot|LOGIN_REQUIRED|cookies/i.test(text) && /youtube/i.test(text))
+    return 'YouTube blocked the VM (“confirm you’re not a bot”). Add YouTube cookies in Settings → YouTube links, or upload the video file instead.';
+  if (/Private video|Video unavailable|This video is unavailable/i.test(text)) return 'That video is private or unavailable.';
+  if (/too short|no usable clips/i.test(text)) return 'The video is too short or had no usable moments for clips.';
+  return last.replace(/^[^\w]+/, '').slice(0, 300);
 }

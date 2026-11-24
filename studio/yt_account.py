@@ -290,6 +290,20 @@ def accounts(env=None):
         text = str(env.get(name) or "").strip()
         if text:
             out.append(text + "\n")
+    # Nova Clipping: cookies saved from the website (Settings -> YouTube
+    # downloads) land as files in YT_COOKIES_DIR, on the VM only.
+    folder = str(env.get("YT_COOKIES_DIR") or "").strip()
+    if folder and os.path.isdir(folder):
+        for fname in sorted(os.listdir(folder)):
+            if not (fname.startswith("youtube-cookies") and fname.endswith(".txt")):
+                continue
+            try:
+                with open(os.path.join(folder, fname), encoding="utf-8") as f:
+                    text = f.read().strip()
+            except OSError:
+                continue
+            if text and len(out) < MAX_ACCOUNTS:
+                out.append(text + "\n")
     return out
 
 

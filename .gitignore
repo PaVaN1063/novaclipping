@@ -27,3 +27,4 @@ website/netlify-proxy/deploy-netlify.bat
 .commit-msg
 studio/deploy/engine-secret.txt
 studio/deploy/netlify-secrets.txt
+studio/deploy/vm-logs.txt
