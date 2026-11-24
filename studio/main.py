@@ -30,6 +30,7 @@ import gemini_worker
 import hook_grounding
 import layout_picker
 import llm_backend
+import ai_providers
 import yt_account
 import twitch_signals
 from clip_selection import (build_transcript_windows, clip_count_targets,
@@ -2155,85 +2156,49 @@ def transcribe_video(video_path, slot_timeout=None):
 
     return transcript
 
-def _run_gemini_stage(client, model_name, prompt, schema):
-    """One schema-enforced model call with transient-error backoff.
-    Returns (parsed_dict, cost_analysis).
+def _run_gemini_stage(client, model_name, prompt, schema, can_split=False):
+    """One schema-enforced model call. Returns (parsed_dict, cost_analysis).
 
     With an OpenAI-compatible server configured (``llm_backend.active()``)
-    the call goes there instead of Gemini and ``client`` is unused; the
-    retry policy is shared because a local server has the same failure
-    shapes (connection refused while the model loads, a truncated body,
-    a 5xx from a busy vLLM)."""
-    use_local = llm_backend.active()
-    config = None if use_local else genai_types.GenerateContentConfig(
+    the call goes there with a short retry. Otherwise ``ai_providers`` runs
+    it: Gemini models this key can use, then Groq, then waiting and trying
+    again — a busy service never fails the job (see ai_providers.py).
+    ``can_split``: the caller can split the work if a service says the
+    request is too big (raises ai_providers.TooLarge)."""
+    if llm_backend.active():
+        for attempt in range(1, 4):
+            try:
+                return llm_backend.generate_json(prompt, schema, model=model_name)
+            except Exception as e:
+                if attempt == 3:
+                    raise
+                print(f"⚠️ LLM server error (attempt {attempt}/3), retrying in {5 * attempt}s: {str(e)[:150]}")
+                time.sleep(5 * attempt)
+
+    config = genai_types.GenerateContentConfig(
         response_mime_type="application/json",
         response_schema=schema,
     )
-    # Nova Clipping: a long video costs 30+ minutes of transcription, so a
-    # busy Gemini ("503 high demand") must not throw that work away. Wait
-    # longer, and after two busy answers move to the next model in the list.
-    models = [model_name] if use_local else _gemini_model_chain(model_name)
-    max_attempts = 3 if use_local else max(8, 2 * len(models) + 2)
-    current = 0
-    for attempt in range(1, max_attempts + 1):
-        try:
-            if use_local:
-                return llm_backend.generate_json(prompt, schema, model=model_name)
-            model_name = models[current]
-            response = client.models.generate_content(model=model_name, contents=prompt, config=config)
-            # Policy blocks are deterministic — retrying only burns quota and
-            # time, and the user deserves the real reason instead of a generic
-            # "empty response" (prod 23-jul: PROHIBITED_CONTENT on every try).
-            gemini_worker.raise_if_blocked(response)
-            # Parsing lives inside the retry loop on purpose: Gemini sometimes
-            # returns 200 with an empty body, which raises here rather than at
-            # the call. Retrying that recovered every occurrence seen in prod
-            # (22-jul-2026) — the same payload succeeds on the next attempt.
-            parsed_obj = getattr(response, "parsed", None)
-            if parsed_obj is not None:
-                parsed = parsed_obj.model_dump() if hasattr(parsed_obj, "model_dump") else parsed_obj
-            else:
-                parsed = gemini_worker._parse_json_response_text(
-                    gemini_worker._get_response_text(response))
-            return parsed, gemini_worker._calculate_cost_analysis(response, model_name)
-        except gemini_worker.GeminiBlockedError:
-            raise  # deterministic policy block — never retry
-        except Exception as e:
-            msg = str(e)
-            transient = any(tok in msg for tok in (
-                '503', 'UNAVAILABLE', '429', 'RESOURCE_EXHAUSTED',
-                '500', 'INTERNAL', 'overloaded', 'Deadline',
-                'empty response body', 'did not contain a JSON object',
-                'Failed to parse Gemini JSON response',
-                # OpenAI-compatible servers: model still loading, busy, or a
-                # small model that skipped a required field this time.
-                'ConnectError', 'ReadTimeout', 'RemoteProtocolError', '502', '504',
-                'validation error'))
-            if attempt == max_attempts or not transient:
-                raise
-            who = "LLM server" if use_local else f"Gemini ({model_name})"
-            busy = any(tok in msg for tok in ('503', 'UNAVAILABLE', '429', 'RESOURCE_EXHAUSTED', 'overloaded'))
-            if not use_local and busy and attempt % 2 == 0 and current + 1 < len(models):
-                current += 1
-                wait = 5
-                print(f"⚠️ {who} is busy; switching to {models[current]} (attempt {attempt}/{max_attempts})")
-            else:
-                wait = min(90, 5 * (2 ** (attempt - 1)))
-                print(f"⚠️ {who} transient error (attempt {attempt}/{max_attempts}), retrying in {wait}s: {msg[:150]}")
-            time.sleep(wait)
 
+    def gemini_call(model):
+        response = client.models.generate_content(model=model, contents=prompt, config=config)
+        # Policy blocks are deterministic — retrying only burns quota.
+        gemini_worker.raise_if_blocked(response)
+        # Gemini sometimes returns 200 with an empty body; that raises here
+        # and counts as "busy", so the next try or model takes over.
+        parsed_obj = getattr(response, "parsed", None)
+        if parsed_obj is not None:
+            parsed = parsed_obj.model_dump() if hasattr(parsed_obj, "model_dump") else parsed_obj
+        else:
+            parsed = gemini_worker._parse_json_response_text(
+                gemini_worker._get_response_text(response))
+        return parsed, gemini_worker._calculate_cost_analysis(response, model)
 
-def _gemini_model_chain(first):
-    """The chosen model first, then other Gemini text models to try when it
-    is overloaded. GEMINI_FALLBACK_MODELS (comma list) overrides the rest."""
-    extra = os.environ.get("GEMINI_FALLBACK_MODELS", "").strip()
-    rest = [m.strip() for m in extra.split(",") if m.strip()] if extra else [
-        "gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"]
-    out = []
-    for m in [first] + rest:
-        if m and m not in out:
-            out.append(m)
-    return out
+    def groq_call(model, key):
+        return llm_backend.generate_json(prompt, schema, model=model,
+                                         base=ai_providers.GROQ_BASE, key=key, timeout=120)
+
+    return ai_providers.run_json_stage(gemini_call, groq_call, model_name, client, can_split=can_split)
 
 
 def _run_stage_split(client, model_name, items, build_prompt, schema, key, costs, label):
@@ -2250,10 +2215,15 @@ def _run_stage_split(client, model_name, items, build_prompt, schema, key, costs
         return []
     prompt = build_prompt(items)
     try:
-        parsed, cost = _run_gemini_stage(client, model_name, prompt, schema)
+        parsed, cost = _run_gemini_stage(client, model_name, prompt, schema, can_split=len(items) > 1)
         if cost:
             costs.append(cost)
         return list(parsed.get(key) or [])
+    except ai_providers.TooLarge:
+        mid = len(items) // 2
+        print(f"   ✂️ {label}: request too big for this AI service; splitting {len(items)} → {mid} + {len(items) - mid}")
+        return (_run_stage_split(client, model_name, items[:mid], build_prompt, schema, key, costs, label)
+                + _run_stage_split(client, model_name, items[mid:], build_prompt, schema, key, costs, label))
     except gemini_worker.GeminiBlockedError as e:
         if len(items) == 1:
             print(f"   🚫 {label}: Gemini blocked window {items[0].get('id')} on its own; skipping it ({e})")
@@ -2297,11 +2267,10 @@ def get_viral_clips(transcript_result, video_duration, viewer_clips=None):
     else:
         print("\U0001f916  Analyzing with Gemini (2-pass: score → detail)...")
         api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            print("❌ Error: GEMINI_API_KEY not found in environment variables "
-                  "(set it, or point LLM_BASE_URL at an OpenAI-compatible server).")
+        if not api_key and not ai_providers.groq_key():
+            print("❌ Error: no AI key — add a Gemini or Groq key in Settings.")
             return None
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key) if api_key else None
         model_name = os.environ.get("GEMINI_MODEL") or 'gemini-3.1-flash-lite'
     print(f"\U0001f916  Model: {model_name} | language: {language}")
 

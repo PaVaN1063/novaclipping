@@ -342,6 +342,7 @@ export async function runStudio() {
     }
     if (st.status === 'failed') {
       const last = (st.logs || []).slice(-1)[0] || 'Clipping failed.';
+      if ((st.logs || []).some((l) => /cookies are no longer valid/i.test(l))) await markCookiesInvalid();
       await updateDb((d) => { const j = d.jobs.find((x) => x.id === job.id); if (j) { j.status = 'failed'; j.error = friendlyError(st.logs || [], last); j.finishedAt = new Date().toISOString(); } });
       continue;
     }
@@ -444,11 +445,25 @@ export async function deleteClipFiles(ids: string[]) {
 // Turn the engine's last log lines into a message the Studio can show.
 function friendlyError(logs: string[], last: string): string {
   const text = logs.slice(-60).join('\n');
+  if (/cookies are no longer valid|cookies.*rotated/i.test(text))
+    return 'Your saved YouTube cookies stopped working (YouTube rotated them). Export fresh ones in Settings → YouTube links, then press Retry.';
   if (/confirm you.?re not a bot|LOGIN_REQUIRED|cookies/i.test(text) && /youtube/i.test(text))
     return 'YouTube blocked the VM (“confirm you’re not a bot”). Add YouTube cookies in Settings → YouTube links, or upload the video file instead.';
+  if (/No AI service is set up|no AI key/i.test(text)) return 'No AI key on the VM. Add a Gemini or Groq key in Settings, then press Retry.';
+  if (/stayed busy for/i.test(text))
+    return 'Every AI service (Gemini and Groq) stayed busy for an hour. Press Retry later — the video and transcript are kept.';
   if (/Clip detection failed|did not return usable clips/i.test(text) && /503|UNAVAILABLE|high demand|429|RESOURCE_EXHAUSTED/i.test(text))
     return 'Gemini was too busy to pick the clips. Press Retry — the video and its transcript are kept, so it goes straight to finding moments.';
   if (/Private video|Video unavailable|This video is unavailable/i.test(text)) return 'That video is private or unavailable.';
   if (/too short|no usable clips/i.test(text)) return 'The video is too short or had no usable moments for clips.';
   return last.replace(/^[^\w]+/, '').slice(0, 300);
+}
+
+// Remember that YouTube rejected the saved cookies, so Settings can say so.
+async function markCookiesInvalid() {
+  try {
+    const dir = path.join(process.cwd(), 'data', 'youtube');
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, 'status.json'), JSON.stringify({ invalidAt: new Date().toISOString() }));
+  } catch {}
 }

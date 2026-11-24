@@ -746,6 +746,17 @@ def transcribe_media(media_path):
             "This video has no audio track. Nova Clipping finds viral moments from "
             "speech, so it needs a video with audio.")
 
+    # Nova Clipping: Groq's Whisper API first when a Groq key is saved on the
+    # VM (seconds instead of ~11 minutes on 2 CPU cores). Any problem returns
+    # None and the local backends below run exactly as before.
+    try:
+        import groq_asr
+        fast = groq_asr.transcribe(media_path)
+        if fast is not None:
+            return fast
+    except Exception as e:
+        print(f"⚠️ [ASR] Groq step skipped ({type(e).__name__}: {e})")
+
     backend = os.environ.get("TRANSCRIBE_BACKEND", "whisper").strip().lower()
 
     if backend == "parakeet":
