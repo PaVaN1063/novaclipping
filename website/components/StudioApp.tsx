@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import JobDetails, { DetailsToggle } from './JobDetails';
 
 type Status = 'confirm' | 'approval' | 'ready' | 'scheduled' | 'posted' | 'on_hold' | 'deleted';
 type Clip = {
@@ -77,6 +78,7 @@ export default function StudioApp() {
   const [remind, setRemind] = useState<string[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [when, setWhen] = useState<Record<string, string>>({});
+  const [openJobs, setOpenJobs] = useState<Record<string, boolean>>({});
   const tabTouched = useRef(false);
 
   const toast = useCallback((text: string, t?: Toast['tone']) => {
@@ -253,14 +255,20 @@ export default function StudioApp() {
             <div key={j.id} className="st-job">
               <div className="st-job-head">
                 <span><strong>{pname(j.projectId)}</strong> · <span className="muted">{j.source.kind === 'url' ? j.source.url : j.source.fileName}</span></span>
-                <span className={`chip ${j.status === 'failed' ? 'chip-danger' : j.status === 'waiting' ? 'chip-warn' : 'chip-accent'}`}>
-                  {j.status === 'failed' ? 'Failed' : j.status === 'waiting' ? 'Waiting' : `${j.progress}%`}
+                <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span className={`chip ${j.status === 'failed' ? 'chip-danger' : j.status === 'waiting' ? 'chip-warn' : 'chip-accent'}`}>
+                    {j.status === 'failed' ? 'Failed' : j.status === 'waiting' ? 'Waiting' : `${j.progress}%`}
+                  </span>
+                  <DetailsToggle open={!!openJobs[j.id]} onClick={() => setOpenJobs((o) => ({ ...o, [j.id]: !o[j.id] }))} />
                 </span>
               </div>
               {j.status === 'failed' ? (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
                   <span className="error" style={{ fontSize: 13 }}>{j.error}</span>
-                  <button type="button" className="btn btn-ghost" style={{ minHeight: 34, fontSize: 13 }} onClick={() => api(`/api/studio/jobs/${j.id}`, undefined, 'DELETE').then(load)}>Remove</button>
+                  <span style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" className="btn btn-primary" style={{ minHeight: 34, fontSize: 13 }} onClick={() => api(`/api/studio/jobs/${j.id}`, { action: 'retry' }, 'POST').then(load)}>Retry</button>
+                    <button type="button" className="btn btn-ghost" style={{ minHeight: 34, fontSize: 13 }} onClick={() => api(`/api/studio/jobs/${j.id}`, undefined, 'DELETE').then(load)}>Remove</button>
+                  </span>
                 </div>
               ) : (
                 <>
@@ -268,6 +276,7 @@ export default function StudioApp() {
                   <span className="hint">{j.status === 'waiting' ? 'Waits for another project to finish' : j.stage || 'Working'}</span>
                 </>
               )}
+              {openJobs[j.id] ? <JobDetails jobId={j.id} running={j.status === 'clipping' || j.status === 'sending'} /> : null}
             </div>
           ))}
         </section>

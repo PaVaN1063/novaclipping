@@ -2169,11 +2169,17 @@ def _run_gemini_stage(client, model_name, prompt, schema):
         response_mime_type="application/json",
         response_schema=schema,
     )
-    max_attempts = 3
+    # Nova Clipping: a long video costs 30+ minutes of transcription, so a
+    # busy Gemini ("503 high demand") must not throw that work away. Wait
+    # longer, and after two busy answers move to the next model in the list.
+    models = [model_name] if use_local else _gemini_model_chain(model_name)
+    max_attempts = 3 if use_local else max(8, 2 * len(models) + 2)
+    current = 0
     for attempt in range(1, max_attempts + 1):
         try:
             if use_local:
                 return llm_backend.generate_json(prompt, schema, model=model_name)
+            model_name = models[current]
             response = client.models.generate_content(model=model_name, contents=prompt, config=config)
             # Policy blocks are deterministic — retrying only burns quota and
             # time, and the user deserves the real reason instead of a generic
@@ -2205,10 +2211,29 @@ def _run_gemini_stage(client, model_name, prompt, schema):
                 'validation error'))
             if attempt == max_attempts or not transient:
                 raise
-            wait = 5 * (2 ** (attempt - 1))
-            who = "LLM server" if use_local else "Gemini"
-            print(f"⚠️ {who} transient error (attempt {attempt}/{max_attempts}), retrying in {wait}s: {msg[:150]}")
+            who = "LLM server" if use_local else f"Gemini ({model_name})"
+            busy = any(tok in msg for tok in ('503', 'UNAVAILABLE', '429', 'RESOURCE_EXHAUSTED', 'overloaded'))
+            if not use_local and busy and attempt % 2 == 0 and current + 1 < len(models):
+                current += 1
+                wait = 5
+                print(f"⚠️ {who} is busy; switching to {models[current]} (attempt {attempt}/{max_attempts})")
+            else:
+                wait = min(90, 5 * (2 ** (attempt - 1)))
+                print(f"⚠️ {who} transient error (attempt {attempt}/{max_attempts}), retrying in {wait}s: {msg[:150]}")
             time.sleep(wait)
+
+
+def _gemini_model_chain(first):
+    """The chosen model first, then other Gemini text models to try when it
+    is overloaded. GEMINI_FALLBACK_MODELS (comma list) overrides the rest."""
+    extra = os.environ.get("GEMINI_FALLBACK_MODELS", "").strip()
+    rest = [m.strip() for m in extra.split(",") if m.strip()] if extra else [
+        "gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"]
+    out = []
+    for m in [first] + rest:
+        if m and m not in out:
+            out.append(m)
+    return out
 
 
 def _run_stage_split(client, model_name, items, build_prompt, schema, key, costs, label):

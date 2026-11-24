@@ -15,6 +15,11 @@ services:
       # Clips stay until the website deletes them (its 7-day rules); source videos go after a day.
       - JOB_RETENTION_SECONDS=315360000
       - SOURCE_RETENTION_SECONDS=86400
+      # Keep each downloaded YouTube video + its transcript for 2 days, so a
+      # Retry (e.g. after Gemini was busy) skips the download and the listening.
+      - SOURCE_CACHE_DIR=/app/output/.source-cache
+      - SOURCE_CACHE_HOURS=48
+      - SOURCE_CACHE_MAX_GB=25
       - NOVA_SITE_PUBLIC_URL=https://novaclipping.netlify.app
       - NOVA_SITE_API_URL=http://website:3000
       # YouTube cookies saved in the website's Settings (VM only, read-only here)
