@@ -25,7 +25,12 @@ export async function GET() {
   if (!(await currentUser())) return unauthorized();
   try {
     const [text, st] = await Promise.all([fs.readFile(FILE, 'utf8'), fs.stat(FILE)]);
-    return NextResponse.json({ ok: true, set: true, savedAt: st.mtime.toISOString(), ...summary(text) });
+    let invalid = false;
+    try {
+      const mark = JSON.parse(await fs.readFile(path.join(DIR, 'status.json'), 'utf8')) as { invalidAt?: string };
+      invalid = !!mark.invalidAt && Date.parse(mark.invalidAt) > st.mtime.getTime();
+    } catch {}
+    return NextResponse.json({ ok: true, set: true, invalid, savedAt: st.mtime.toISOString(), ...summary(text) });
   } catch {
     return NextResponse.json({ ok: true, set: false });
   }
@@ -49,6 +54,7 @@ export async function POST(req: Request) {
   if (!text.startsWith('# Netscape')) text = '# Netscape HTTP Cookie File\n' + text;
   await fs.mkdir(DIR, { recursive: true });
   await fs.writeFile(FILE, text + '\n', { mode: 0o644 });
+  await fs.rm(path.join(DIR, 'status.json'), { force: true });
   await fs.chmod(FILE, 0o644).catch(() => {});
   return NextResponse.json({ ok: true, ...s });
 }

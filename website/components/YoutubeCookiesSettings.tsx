@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-type Status = { set: boolean; savedAt?: string; cookies?: number; loggedIn?: boolean; expires?: string | null };
+type Status = { set: boolean; invalid?: boolean; savedAt?: string; cookies?: number; loggedIn?: boolean; expires?: string | null };
 
 // Cookies that let the VM download YouTube links (YouTube blocks cloud servers
 // without a signed-in session). Saved on the VM only; never shown again.
@@ -45,7 +45,7 @@ export default function YoutubeCookiesSettings() {
             YouTube blocks cloud servers with “confirm you’re not a bot”. Give the VM the cookies of a signed-in YouTube session so pasted links download. Uploading a video file always works without this.
           </span>
         </div>
-        <span className={`chip ${on ? 'chip-ok' : 'chip-warn'}`}>{st === null ? 'Checking…' : on ? 'Cookies saved' : 'Links blocked — add cookies'}</span>
+        <span className={`chip ${on && !st?.invalid ? 'chip-ok' : 'chip-warn'}`}>{st === null ? 'Checking…' : st.invalid ? 'Expired — export fresh cookies' : on ? 'Cookies saved' : 'Links blocked — add cookies'}</span>
       </div>
       {on ? (
         <span className="hint">
@@ -58,7 +58,7 @@ export default function YoutubeCookiesSettings() {
       </label>
       <input type="file" accept=".txt,text/plain" onChange={(e) => pickFile(e.target.files?.[0])} />
       <span className="hint">
-        Best with a spare Google account: open a private window, sign in on youtube.com, export cookies with a “Get cookies.txt LOCALLY” extension, then close the private window without signing out. Kept on your VM only.
+        Best with a spare Google account. In a new private window: sign in on youtube.com, then in the same tab open youtube.com/robots.txt, export with “Get cookies.txt LOCALLY”, and close the private window right away — don’t browse YouTube with that account again, or YouTube replaces the cookies and the VM is blocked. Kept on your VM only.
       </span>
       {msg ? <p className={msg.ok ? 'hint' : 'error'}>{msg.text}</p> : null}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

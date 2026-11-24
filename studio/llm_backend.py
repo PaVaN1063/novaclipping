@@ -71,16 +71,16 @@ def _timeout() -> float:
         return DEFAULT_TIMEOUT
 
 
-def _headers() -> dict:
+def _headers(key: Optional[str] = None) -> dict:
     # Ollama ignores the key but the OpenAI client convention (and vLLM with
     # --api-key) wants the header present; "ollama" is the documented placeholder.
-    key = (os.environ.get("LLM_API_KEY") or "ollama").strip()
+    key = (key or os.environ.get("LLM_API_KEY") or "ollama").strip()
     return {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
 
-def _client(**kwargs) -> httpx.Client:
+def _client(timeout: Optional[float] = None, **kwargs) -> httpx.Client:
     """Factory so tests can swap in ``httpx.MockTransport``."""
-    return httpx.Client(timeout=_timeout(), **kwargs)
+    return httpx.Client(timeout=timeout or _timeout(), **kwargs)
 
 
 def _response_formats(schema: Type[BaseModel]):
@@ -100,6 +100,8 @@ def _is_format_rejection(resp: httpx.Response) -> bool:
 
 
 def generate_json(prompt: str, schema: Type[BaseModel], model: Optional[str] = None,
+                  base: Optional[str] = None, key: Optional[str] = None,
+                  timeout: Optional[float] = None,
                   ) -> Tuple[dict, Optional[dict]]:
     """One chat completion that must come back as JSON matching ``schema``.
 
@@ -110,19 +112,19 @@ def generate_json(prompt: str, schema: Type[BaseModel], model: Optional[str] = N
     """
     import gemini_worker  # local import: keeps this module free of the google SDK
 
-    url = f"{base_url()}/chat/completions"
+    url = f"{(base or base_url()).rstrip('/')}/chat/completions"
     model = model or model_name()
     messages = [
         {"role": "system", "content": "You answer with a single JSON object and nothing else."},
         {"role": "user", "content": prompt},
     ]
     last_rejection: Optional[str] = None
-    with _client() as client:
+    with _client(timeout) as client:
         for fmt in _response_formats(schema):
             body = {"model": model, "messages": messages, "temperature": 0.2, "stream": False}
             if fmt is not None:
                 body["response_format"] = fmt
-            resp = client.post(url, json=body, headers=_headers())
+            resp = client.post(url, json=body, headers=_headers(key))
             if fmt is not None and _is_format_rejection(resp):
                 # The server does not know this response_format flavour; the
                 # next loop iteration asks for a looser one.

@@ -30,18 +30,32 @@ export function readLogs(logs: string[], status: string, fromUpload: boolean, ta
   const total = found ? Number(found[1]) : 0;
   const findDone = !!found || has(text, /Processing Clip \d+|Processing clip:/);
   const ready = (text.match(/Clip \d+ ready/g) || []).length;
-  const busyGemini = lastMatch(logs, /Gemini.*(busy|transient error|503|high demand)/i);
-  const switched = lastMatch(logs, /switching to ([\w.-]+)/);
+  const busyGemini = lastMatch(logs, /(Gemini|Groq).*(busy|transient error|503|high demand)/i);
+  const switched = lastMatch(logs, /switching to (\w+) ([\w./:-]+)/);
+  const waitingAi = lastMatch(logs, /All AI services are busy — trying again in (\d+)s \(waited (\d+) of (\d+) min\)/);
+  const answered = lastMatch(logs, /AI answered: (\w+) ([\w./:-]+)/);
+  const groqAsr = has(text, /Listening with Groq Whisper/);
+  const groqAsrOk = lastMatch(logs, /\[ASR\] Groq ok: \d+ segments in (\d+)s/);
+  const groqAsrOff = has(text, /Groq transcription not used|Groq returned no speech/);
+  // Which of the waiting/switching/answered lines came last decides the note.
+  const lastIdx = (re: RegExp) => { for (let i = logs.length - 1; i >= 0; i--) if (re.test(logs[i])) return i; return -1; };
+  const iWait = lastIdx(/All AI services are busy/), iSwitch = lastIdx(/switching to \w+ /), iAns = lastIdx(/AI answered:/);
+  let aiNote: string | null = null;
+  if (iAns > iWait && iAns > iSwitch && answered) aiNote = `Answered by ${answered[1]} (${answered[2]})`;
+  else if (iWait > iSwitch && waitingAi) aiNote = `All AI services busy — retrying in ${waitingAi[1]}s (waited ${waitingAi[2]} of ${waitingAi[3]} min)`;
+  else if (switched) aiNote = `Busy — now trying ${switched[1]} ${switched[2]}`;
+  else if (busyGemini) aiNote = 'AI busy, retrying…';
 
   const steps: Step[] = [];
   const st = (done: boolean, started: boolean): StepState =>
     done ? 'done' : started ? (failed ? 'failed' : 'active') : 'waiting';
 
   steps.push({ key: 'download', label: fromUpload ? 'Video received' : 'Downloading the video', state: st(dlDone, dlStart), detail: null, percent: null });
-  steps.push({ key: 'listen', label: 'Listening to the speech', state: st(listenDone, listenStart), percent: listenDone ? 100 : listenPct,
-    detail: tr && !listenDone ? `${tr[1]}% after ${fmt(Number(tr[2]))}` : null });
-  steps.push({ key: 'find', label: 'Finding viral moments (Gemini)', state: st(findDone, findStart), percent: null,
-    detail: findDone && total ? `${total} clips picked` : switched ? `Gemini busy — now trying ${switched[1]}` : busyGemini && !findDone ? 'Gemini is busy, retrying…' : null });
+  const via = groqAsrOk ? `with Groq in ${fmt(Number(groqAsrOk[1]))}` : groqAsr && !groqAsrOff ? 'with Groq (fast)' : groqAsrOff ? 'on the VM (Groq not available)' : null;
+  steps.push({ key: 'listen', label: 'Listening to the speech', state: st(listenDone, listenStart || groqAsr), percent: listenDone ? 100 : listenPct,
+    detail: [tr && !listenDone ? `${tr[1]}% after ${fmt(Number(tr[2]))}` : null, via].filter(Boolean).join(' · ') || null });
+  steps.push({ key: 'find', label: 'Finding viral moments (AI)', state: st(findDone, findStart), percent: null,
+    detail: findDone && total ? `${total} clips picked${answered ? ` · by ${answered[1]}` : ''}` : aiNote });
   const of = total || targetClips || 0;
   steps.push({ key: 'clips', label: 'Cutting and rendering clips', state: finished ? 'done' : st(false, findDone), percent: of ? Math.round((ready / of) * 100) : null,
     detail: findDone ? `${ready} of ${of || '?'} ready` : null });
@@ -60,7 +74,11 @@ export function readLogs(logs: string[], status: string, fromUpload: boolean, ta
     stage = `Listening to the speech · ${listenPct}%`;
     if (tr && listenPct > 0) etaSeconds = Math.round((Number(tr[2]) / listenPct) * (100 - listenPct));
   }
-  if (findStart) { progress = 42; stage = switched ? `Finding moments · trying ${switched[1]}` : 'Finding viral moments'; }
+  if (findStart) {
+    progress = 42;
+    stage = iWait > iSwitch && iWait > iAns && waitingAi ? `Waiting for AI · retry in ${waitingAi[1]}s`
+      : iSwitch > iAns && switched ? `Finding moments · using ${switched[1]}` : 'Finding viral moments';
+  }
   if (findDone) {
     progress = 55 + (of ? Math.round((ready / of) * 42) : 0);
     stage = `Making clips · ${ready} of ${of || '?'} ready`;
@@ -86,6 +104,7 @@ export function cleanLogs(logs: string[], max = 150): string[] {
     l = l.replace(/https?:\/\/\S+/g, '[link]')
       .replace(/\b\d{1,3}(\.\d{1,3}){3}\b/g, '[ip]')
       .replace(/\bAIza[0-9A-Za-z_-]{20,}\b/g, '[key]')
+      .replace(/\bgsk_[0-9A-Za-z]{16,}\b/g, '[key]')
       .replace(/(key|token|secret|password|cookie)s?(["'=:\s]+)[^\s,'"}]{8,}/gi, '$1$2[hidden]');
     out.push(l.length > 400 ? l.slice(0, 400) + '…' : l);
   }
