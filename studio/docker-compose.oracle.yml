@@ -17,6 +17,10 @@ services:
       - SOURCE_RETENTION_SECONDS=86400
       - NOVA_SITE_PUBLIC_URL=https://novaclipping.netlify.app
       - NOVA_SITE_API_URL=http://website:3000
+      # YouTube cookies saved in the website's Settings (VM only, read-only here)
+      - YT_COOKIES_DIR=/app/secrets
+    volumes:
+      - ../novaclipping-website/data/youtube:/app/secrets:ro
     restart: unless-stopped
 
   frontend:

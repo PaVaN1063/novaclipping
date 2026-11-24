@@ -3,6 +3,7 @@ import AiSettings from '@/components/AiSettings';
 import AutopilotSettings from '@/components/AutopilotSettings';
 import AutomationSettings from '@/components/AutomationSettings';
 import MailSettings from '@/components/MailSettings';
+import YoutubeCookiesSettings from '@/components/YoutubeCookiesSettings';
 import InstagramSettings from '@/components/InstagramSettings';
 import YoutubeSettings from '@/components/YoutubeSettings';
 import { INBOX_DIR, readDb } from '@/lib/store';
@@ -67,6 +68,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           maxParallel={db.studio.maxParallel}
           storageLimitGb={db.studio.storageLimitGb}
         />
+      </div>
+
+      <div id="youtube-links">
+        <YoutubeCookiesSettings />
       </div>
 
       <div id="mail">

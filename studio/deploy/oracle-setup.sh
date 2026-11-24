@@ -57,7 +57,7 @@ if [ -f ~/nova-website.tgz ]; then
   tar -xzf ~/nova-website.tgz -C "$WEB"
   rm -f ~/nova-website.tgz
 fi
-mkdir -p "$WEB/data" "$WEB/storage/clips" "$WEB/inbox"
+mkdir -p "$WEB/data" "$WEB/data/youtube" "$WEB/storage/clips" "$WEB/inbox"
 if [ ! -f "$WEB/data/nova.json" ] && [ -f ~/nova-data.json ]; then
   echo "--- first time: copying the website's settings and connections from the laptop"
   cp ~/nova-data.json "$WEB/data/nova.json"
