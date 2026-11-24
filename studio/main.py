@@ -2325,7 +2325,9 @@ def get_viral_clips(transcript_result, video_duration, viewer_clips=None):
                 video_duration=video_duration, language=language,
                 windows_json=json.dumps(_payload(ws), ensure_ascii=False))
 
-        for batch in score_batches(windows, SCORE_BATCH):
+        _batches = list(score_batches(windows, SCORE_BATCH))
+        for _bi, batch in enumerate(_batches, 1):
+            print(f"   🧮 Scoring part {_bi} of {len(_batches)}…", flush=True)
             scored.extend(_run_stage_split(
                 client, model_name, batch, _score_prompt,
                 gemini_worker.ScoreResponse, "windows", costs, "score"))

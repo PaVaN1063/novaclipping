@@ -24,7 +24,7 @@ import time
 import httpx
 
 GROQ_BASE = "https://api.groq.com/openai/v1"
-CALL_TIMEOUT = float(os.environ.get("AI_CALL_TIMEOUT_SECONDS", "150"))
+CALL_TIMEOUT = float(os.environ.get("AI_CALL_TIMEOUT_SECONDS", "90"))
 WAIT_MAX = float(os.environ.get("AI_WAIT_MAX_SECONDS", "3600"))
 
 # Preference order when picking from the models a key offers.
@@ -93,7 +93,7 @@ def gemini_models(client, configured):
     if _gemini_models_cache is None:
         names = []
         try:
-            for m in client.models.list():
+            for m in _with_timeout(lambda: list(client.models.list()), 25):
                 name = (getattr(m, "name", "") or "").split("/")[-1]
                 actions = getattr(m, "supported_actions", None) or []
                 if name.startswith("gemini-") and (not actions or "generateContent" in actions) \
@@ -211,6 +211,11 @@ def run_json_stage(gemini_call, groq_call, configured_model, client, can_split=F
                     if kind == "dead":
                         print(f"⚠️ {svc} {model} is not available to this key; skipping it.")
                         dead.add((svc, model))
+                        break
+                    if isinstance(e, TimeoutError):
+                        # A hung request means this model is overloaded right
+                        # now; waiting on it again only wastes minutes.
+                        print(f"⚠️ {svc} ({model}) did not answer in {int(CALL_TIMEOUT)}s.")
                         break
                     if attempt == 1:
                         wait = _suggested_wait(msg, 5)

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 
 export default function AiSettings({ hasKey, model: savedModel }: { hasKey: boolean; model: string }) {
   const router = useRouter();
@@ -9,6 +9,9 @@ export default function AiSettings({ hasKey, model: savedModel }: { hasKey: bool
   const [model, setModel] = useState(savedModel);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [check, setCheck] = useState<{ valid?: boolean | null; answering?: string; ms?: number; models?: string[]; reason?: string } | null>(null);
+  const runCheck = () => { setCheck(null); fetch('/api/settings/ai', { cache: 'no-store' }).then((r) => r.json()).then(setCheck).catch(() => setCheck({ valid: null, reason: 'Could not check.' })); };
+  useEffect(() => { if (hasKey) runCheck(); }, [hasKey]);
 
   async function send(body: Record<string, unknown>, done: string) {
     setBusy(true);
@@ -36,7 +39,10 @@ export default function AiSettings({ hasKey, model: savedModel }: { hasKey: bool
             Watches each clip and writes the title, description, hashtags and tags before it’s uploaded.
           </span>
         </div>
-        <span className={`chip ${hasKey ? 'chip-ok' : 'chip-warn'}`}>{hasKey ? 'On' : 'Needs a key'}</span>
+        <span className={`chip ${!hasKey ? 'chip-warn' : check?.valid === false ? 'chip-danger' : check?.answering === 'yes' ? 'chip-ok' : 'chip-warn'}`}>
+          {!hasKey ? 'Needs a key' : !check ? 'Checking…' : check.valid === false ? 'Key not valid' : check.answering === 'yes' ? `Working · ${((check.ms || 0) / 1000).toFixed(1)}s` : check.answering === 'busy' ? 'Key OK · Gemini busy now' : check.answering === 'slow' ? 'Key OK · Gemini very slow now' : 'Saved'}
+        </span>
+        {hasKey ? <button type="button" className="btn btn-ghost" style={{ minHeight: 30, fontSize: 12 }} onClick={runCheck}>Check</button> : null}
       </div>
 
       <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
