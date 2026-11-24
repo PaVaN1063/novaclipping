@@ -283,3 +283,23 @@ td:first-child { color: var(--heading); font-weight: 500; }
 .modal-back { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; z-index: 70; padding: 20px; }
 .modal { width: min(560px, 100%); max-height: 85vh; overflow: auto; }
 .check-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 14px; }
+
+/* Job details (the ⌄ button on a clipping job) */
+.st-chevron { width: 30px; height: 30px; display: inline-grid; place-items: center; border-radius: 8px; border: 1px solid var(--border-2); background: transparent; color: var(--muted); cursor: pointer; transition: transform .2s ease, color .15s, border-color .15s; }
+.st-chevron:hover { color: var(--accent-text); border-color: var(--accent); }
+.st-chevron.open { transform: rotate(180deg); color: var(--accent-text); }
+.st-details { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
+.st-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted); }
+.st-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.st-step { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 4px 10px; font-size: 14px; color: var(--muted); }
+.st-step .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border-2); display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.st-step.done { color: inherit; }
+.st-step.done .dot { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.st-step.active { color: inherit; font-weight: 600; }
+.st-step.active .dot { border-color: var(--accent); border-top-color: transparent; animation: st-spin 1s linear infinite; }
+.st-step.failed .dot { border-color: #ef5f6b; background: #ef5f6b; color: #fff; }
+.st-step .det { font-size: 12px; color: var(--muted); font-weight: 400; }
+.st-step .progress.small { grid-column: 2 / 4; height: 4px; }
+@keyframes st-spin { to { transform: rotate(360deg); } }
+.st-logbar { display: flex; justify-content: space-between; align-items: center; }
+.st-log { margin: 0; max-height: 320px; overflow: auto; padding: 12px; border-radius: 10px; background: #07080c; color: #c9d1dd; border: 1px solid var(--border); font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }

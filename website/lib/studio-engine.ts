@@ -2,6 +2,7 @@
 // engine (the Studio backend, http://backend:8000), brings finished clips into
 // the library, makes small preview copies, and applies the automation rules.
 // Called from the worker every 20 seconds. Engine only.
+import { readLogs } from './job-insight';
 import { spawn } from 'child_process';
 import { createReadStream, promises as fs } from 'fs';
 import path from 'path';
@@ -49,23 +50,14 @@ export function statusForScore(score: number, autoPost: boolean): LibStatus | 'a
 
 // ---------- progress -----------------------------------------------------------
 
-function progressFromLogs(logs: string[], status: string, targetClips: number): { progress: number; stage: string } {
-  if (status === 'queued') return { progress: 2, stage: 'Waiting for the clipping engine' };
-  const text = logs.join('\n');
-  const rendered = (text.match(/Processing clip:/g) || []).length;
-  if (rendered > 0) {
-    const of = Math.max(targetClips, rendered + 1);
-    return { progress: Math.min(97, 55 + Math.round((rendered / of) * 42)), stage: `Making clip ${rendered} of about ${of}` };
-  }
-  if (/viral|moments|Gemini|Analy[sz]/i.test(text)) return { progress: 45, stage: 'Finding the best moments' };
-  if (/Transcrib/i.test(text)) return { progress: 30, stage: 'Listening to the video' };
-  if (/Download/i.test(text)) return { progress: 12, stage: 'Downloading the video' };
-  return { progress: 6, stage: 'Starting' };
+function progressFromLogs(logs: string[], status: string, targetClips: number, fromUpload = false): { progress: number; stage: string } {
+  const r = readLogs(logs, status, fromUpload, targetClips);
+  return { progress: r.progress, stage: r.stage };
 }
 
 // ---------- talking to the clipping engine ---------------------------------------
 
-async function studioFetch(p: string, init: RequestInit & { duplex?: 'half' } = {}, gemini?: string | null) {
+export async function studioFetch(p: string, init: RequestInit & { duplex?: 'half' } = {}, gemini?: string | null) {
   const headers = new Headers(init.headers);
   if (gemini) headers.set('X-Gemini-Key', gemini);
   const r = await fetch(`${STUDIO_API}${p}`, { ...init, headers, cache: 'no-store' });
@@ -354,7 +346,7 @@ export async function runStudio() {
       continue;
     }
     if (st.status !== 'completed') {
-      const p = progressFromLogs(st.logs || [], st.status, 6);
+      const p = progressFromLogs(st.logs || [], st.status, 6, job.source.kind === 'file');
       if (p.progress !== job.progress || p.stage !== job.stage) {
         await updateDb((d) => { const j = d.jobs.find((x) => x.id === job.id); if (j) { j.progress = Math.max(j.progress, p.progress); j.stage = p.stage; } });
       }
@@ -454,6 +446,8 @@ function friendlyError(logs: string[], last: string): string {
   const text = logs.slice(-60).join('\n');
   if (/confirm you.?re not a bot|LOGIN_REQUIRED|cookies/i.test(text) && /youtube/i.test(text))
     return 'YouTube blocked the VM (“confirm you’re not a bot”). Add YouTube cookies in Settings → YouTube links, or upload the video file instead.';
+  if (/Clip detection failed|did not return usable clips/i.test(text) && /503|UNAVAILABLE|high demand|429|RESOURCE_EXHAUSTED/i.test(text))
+    return 'Gemini was too busy to pick the clips. Press Retry — the video and its transcript are kept, so it goes straight to finding moments.';
   if (/Private video|Video unavailable|This video is unavailable/i.test(text)) return 'That video is private or unavailable.';
   if (/too short|no usable clips/i.test(text)) return 'The video is too short or had no usable moments for clips.';
   return last.replace(/^[^\w]+/, '').slice(0, 300);
