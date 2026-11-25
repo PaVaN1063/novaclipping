@@ -36,6 +36,7 @@ export async function GET() {
       postedAt: c.postedAt,
       postedTo: c.postedTo,
       autoPosted: c.autoPosted,
+      watermarked: c.watermarked ?? null,
       preview: c.preview ? await directLink(`/api/library/${c.id}/preview`) : null,
       download: c.file ? await directLink(`/api/library/${c.id}/file`, 6 * 3600, 'wm=1') : null,
       original: c.file ? await directLink(`/api/library/${c.id}/file`) : null,
