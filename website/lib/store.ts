@@ -170,6 +170,7 @@ export type LibraryClip = {
   postedTo: Platform[];
   postClipId: string | null; // the clip in the posting queue (batches)
   autoPosted: boolean;
+  watermarked?: boolean; // the channel watermark is burned in (required to post)
 };
 
 export type StudioPrefs = {

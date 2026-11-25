@@ -9,7 +9,7 @@ type Clip = {
   id: string; projectId: string; title: string; description: string; hashtags: string[];
   duration: number | null; viralScore: number; currentScore: number; status: Status;
   createdAt: string; scheduledFor: string | null; postedAt: string | null; postedTo: string[]; autoPosted: boolean;
-  preview: string | null; download: string | null; original: string | null;
+  preview: string | null; download: string | null; original: string | null; watermarked: boolean | null;
 };
 type Job = {
   id: string; projectId: string; status: 'waiting' | 'sending' | 'clipping' | 'done' | 'failed';
@@ -315,6 +315,13 @@ export default function StudioApp() {
                       c.status === 'posted' ? `Posted ${fmt(c.postedAt)}` :
                       c.status === 'deleted' ? `Deleted · viral ${c.viralScore}/100` : `Made ${fmt(c.createdAt)}`}
                   </span>
+                  {c.status !== 'deleted' && c.status !== 'posted' ? (
+                    <div className="st-actions">
+                      {c.watermarked === true ? <span className="chip chip-ok">Watermark ✓</span>
+                        : c.watermarked === false ? <span className="chip chip-danger" title="The watermark could not be added, so this clip is not posted automatically.">No watermark</span>
+                        : <span className="chip chip-warn">Adding watermark…</span>}
+                    </div>
+                  ) : null}
                   {c.postedTo.length || c.autoPosted ? (
                     <div className="st-actions">
                       {c.postedTo.map((p) => <span key={p} className={`chip ${p === 'youtube' ? 'chip-yt' : 'chip-ig'}`}>Posted · {platformName(p)}</span>)}

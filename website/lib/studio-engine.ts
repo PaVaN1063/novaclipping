@@ -3,6 +3,7 @@
 // the library, makes small preview copies, and applies the automation rules.
 // Called from the worker every 20 seconds. Engine only.
 import { readLogs } from './job-insight';
+import { burnWatermark, cleanCopy, gaveUp, isWatermarked } from './watermark';
 import { spawn } from 'child_process';
 import { createReadStream, promises as fs } from 'fs';
 import path from 'path';
@@ -166,6 +167,7 @@ async function importClips(job: StudioJob, st: StudioStatus): Promise<Omit<Libra
       postedTo: [],
       postClipId: null,
       autoPosted: false,
+      watermarked: await isWatermarked(file),
     });
   }
   return out;
@@ -174,7 +176,7 @@ async function importClips(job: StudioJob, st: StudioStatus): Promise<Omit<Libra
 /** Put a library clip into the posting queue (YouTube / Instagram). Returns the time. */
 export function scheduleClip(db: Db, lib: LibraryClip, platforms: Platform[], at?: number | null): string | null {
   const usable = platforms.filter((p) => publishers[p].isConnected(db));
-  if (!usable.length || !lib.file) return null;
+  if (!usable.length || !lib.file || lib.watermarked === false) return null;
   const when = at ?? nextSlot(db, db.studio.gapHours);
   const now = new Date().toISOString();
   const project = db.projects.find((p) => p.id === lib.projectId);
@@ -344,6 +346,7 @@ export async function runStudio() {
       const last = (st.logs || []).slice(-1)[0] || 'Clipping failed.';
       if ((st.logs || []).some((l) => /cookies are no longer valid/i.test(l))) await markCookiesInvalid();
       await updateDb((d) => { const j = d.jobs.find((x) => x.id === job.id); if (j) { j.status = 'failed'; j.error = friendlyError(st.logs || [], last); j.finishedAt = new Date().toISOString(); } });
+      await mailJobFailed(job.id).catch((e) => console.error('[nova-mail]', e));
       continue;
     }
     if (st.status !== 'completed') {
@@ -353,41 +356,45 @@ export async function runStudio() {
       }
       continue;
     }
-    // Finished: bring the clips in and apply the rules.
+    // Finished: burn the watermark into every clip first (one per tick, the
+    // card shows "Adding your watermark 2 of 6"), then bring them in.
+    const files = await renderedClips(job);
+    const todo: string[] = [];
+    for (const f of files) if (!(await isWatermarked(f)) && !(await gaveUp(f))) todo.push(f);
+    if (todo.length) {
+      const n = files.length - todo.length + 1;
+      await updateDb((d) => { const j = d.jobs.find((x) => x.id === job.id); if (j) { j.stage = `Adding your watermark · ${n} of ${files.length}`; j.progress = 98; } });
+      await burnWatermark(todo[0]);
+      continue;
+    }
     const clips = await importClips(job, st);
     const auto: LibraryClip[] = [];
-    const confirm: LibraryClip[] = [];
     await updateDb((d) => {
       const now = new Date().toISOString();
       for (const c of clips) {
         const rule = statusForScore(c.viralScore, d.studio.autoPost);
         const lib: LibraryClip = { ...c, status: rule === 'auto' ? 'ready' : rule, statusAt: now };
+        // No watermark (it could not be added): never posted until you check it.
+        if (!lib.watermarked) lib.status = lib.status === 'on_hold' ? 'on_hold' : 'approval';
         d.library.push(lib);
-        if (rule === 'auto') {
+        if (rule === 'auto' && lib.watermarked) {
           if (scheduleClip(d, lib, d.studio.platforms)) { lib.autoPosted = true; auto.push(lib); }
-          else { lib.status = 'confirm'; confirm.push(lib); }
-        } else if (rule === 'confirm') confirm.push(lib);
+          else lib.status = 'confirm';
+        }
       }
       const j = d.jobs.find((x) => x.id === job.id);
       if (j) { j.status = 'done'; j.progress = 100; j.stage = null; j.clipCount = clips.length; j.finishedAt = now; }
     });
-    const project = (await readDb()).projects.find((p) => p.id === job.projectId)?.name || 'your project';
-    for (const c of auto) {
-      await mailSafe(`Posted automatically: ${c.title}`,
-        `"${c.title}" scored ${c.viralScore}/100, so Nova Clipping scheduled it right away (${project}).\n` +
-        `Goes out: ${c.scheduledFor ? new Date(c.scheduledFor).toUTCString() : 'soon'}\n\n${APP_URL || ''}/studio\n`);
-    }
-    if (confirm.length) {
-      await mailSafe(`${confirm.length} clip${confirm.length > 1 ? 's' : ''} ready to post — confirm?`,
-        confirm.map((c) => `• ${c.title} — viral ${c.viralScore}/100`).join('\n') +
-        `\n\nOpen Nova Clipping to post them with one tap: ${APP_URL || ''}/studio\n`);
-    }
+    await mailClipsReady(job.id).catch((e) => console.error('[nova-mail]', e));
   }
 
-  // 4) Previews (one per tick, so clipping keeps the CPU)
+  // 4) Watermark clips made before watermarking was automatic (one per tick)
+  await watermarkOneOld().catch((e) => console.error('[nova-watermark]', e));
+
+  // 5) Previews (one per tick, so clipping keeps the CPU)
   await makeOnePreview().catch((e) => console.error('[nova-preview]', e));
 
-  // 5) Time rules
+  // 6) Time rules
   const removeFiles: string[] = [];
   await updateDb((d) => {
     const now = Date.now();
@@ -466,4 +473,104 @@ async function markCookiesInvalid() {
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(path.join(dir, 'status.json'), JSON.stringify({ invalidAt: new Date().toISOString() }));
   } catch {}
+}
+
+// ---------- watermark ----------------------------------------------------------------
+
+/** The rendered clip files of a finished engine job (not the clean copies). */
+async function renderedClips(job: StudioJob): Promise<string[]> {
+  const dir = path.join(STUDIO_OUTPUT, job.studioJobId!);
+  const names = await fs.readdir(dir).catch(() => [] as string[]);
+  return names.filter((n) => /_clip_\d+\.mp4$/i.test(n)).sort().map((n) => path.join(dir, n));
+}
+
+/** Library clips from before automatic watermarking get it now, unless already posted. */
+async function watermarkOneOld() {
+  const db = await readDb();
+  if (db.jobs.some((j) => j.status === 'sending')) return;
+  const c = db.library.find((x) => x.file && x.watermarked !== true && !['posted', 'deleted'].includes(x.status) && x.watermarked !== false);
+  if (!c?.file) return;
+  const r = await burnWatermark(c.file);
+  if (r === 'failed') return; // tried again next tick
+  const st = await fs.stat(c.file).catch(() => null);
+  const oldPreview = c.preview && c.preview !== c.file && c.preview !== cleanCopy(c.file) ? c.preview : null;
+  await updateDb((d) => {
+    const x = d.library.find((y) => y.id === c.id);
+    if (!x) return;
+    x.watermarked = r === 'done';
+    if (r === 'done') { x.size = st?.size || x.size; x.preview = null; } // preview is made again, with the watermark
+    else if (x.status === 'confirm' || x.status === 'ready') { x.status = 'approval'; x.statusAt = new Date().toISOString(); }
+  });
+  if (r === 'done' && oldPreview) await fs.unlink(oldPreview).catch(() => {});
+}
+
+// ---------- emails ---------------------------------------------------------------------
+
+const IST: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' };
+const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-IN', IST) : '');
+const esc = (t: string) => t.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch] as string);
+
+function nextStep(c: LibraryClip): string {
+  if (c.status === 'scheduled' || c.autoPosted) return `Auto-posting · ${when(c.scheduledFor)}`;
+  if (c.status === 'confirm') return 'Tap to confirm';
+  if (c.status === 'approval') return c.watermarked === false ? 'Check it — no watermark' : 'Needs your approval';
+  if (c.status === 'on_hold') return 'On hold (low score)';
+  if (c.status === 'ready') return 'Ready to post';
+  return c.status;
+}
+
+async function mailClipsReady(jobId: string) {
+  const db = await readDb();
+  const job = db.jobs.find((j) => j.id === jobId);
+  if (!job) return;
+  const clips = db.library.filter((c) => c.jobId === jobId).sort((a, b) => b.viralScore - a.viralScore);
+  const project = db.projects.find((p) => p.id === job.projectId)?.name || 'Studio';
+  const source = job.source.kind === 'url' ? job.source.url : job.source.fileName;
+  const mins = job.startedAt && job.finishedAt ? Math.max(1, Math.round((Date.parse(job.finishedAt) - Date.parse(job.startedAt)) / 60000)) : null;
+  const best = clips[0]?.viralScore ?? 0;
+  const count = (f: (c: LibraryClip) => boolean) => clips.filter(f).length;
+  const autoN = count((c) => c.autoPosted), confirmN = count((c) => c.status === 'confirm'), approvalN = count((c) => c.status === 'approval'), holdN = count((c) => c.status === 'on_hold');
+  const noWm = count((c) => c.watermarked === false);
+  const s = await storage(true);
+  const usedGb = (s.usedBytes / 1024 ** 3).toFixed(1);
+  const link = `${APP_URL || ''}/studio`;
+
+  if (!clips.length) {
+    await mailSafe(`No clips from ${project}`, `The clipping finished but no clips came out.\nSource: ${source}\n\n${link}\n`);
+    return;
+  }
+  const subject = `${clips.length} clip${clips.length > 1 ? 's' : ''} ready · ${project} · best ${best}%`;
+  const todo = [autoN && `${autoN} auto-posting`, confirmN && `${confirmN} to confirm`, approvalN && `${approvalN} need approval`, holdN && `${holdN} on hold`].filter(Boolean).join(' · ');
+  const text = [
+    `${clips.length} new clips in ${project}${mins ? ` (took ${mins} min)` : ''}.`,
+    `Source: ${source}`,
+    todo,
+    '',
+    ...clips.map((c, i) => `${i + 1}. ${c.title}\n   Viral ${c.viralScore}% · ${c.duration ? Math.round(c.duration) + 's · ' : ''}${nextStep(c)}${c.watermarked ? ' · watermark ✓' : ''}`),
+    '',
+    noWm ? `⚠ ${noWm} clip${noWm > 1 ? 's' : ''} without the watermark — they won't be posted until you check them.` : 'All clips have your watermark.',
+    `Storage: ${usedGb} of ${db.studio.storageLimitGb} GB used.`,
+    '',
+    `Open the Studio: ${link}`,
+  ].join('\n');
+  const rows = clips.map((c, i) => `<tr><td style="padding:8px;color:#888">${i + 1}</td><td style="padding:8px"><b>${esc(c.title)}</b>${c.duration ? `<br><span style="color:#888;font-size:12px">${Math.round(c.duration)} s</span>` : ''}</td><td style="padding:8px;text-align:center"><b style="color:${c.viralScore >= 90 ? '#1a9e5c' : c.viralScore >= 70 ? '#5b45e8' : c.viralScore >= 50 ? '#b7791f' : '#c0392b'}">${c.viralScore}%</b></td><td style="padding:8px;font-size:13px">${esc(nextStep(c))}${c.watermarked ? '<br><span style="color:#1a9e5c;font-size:12px">watermark ✓</span>' : ''}</td></tr>`).join('');
+  const html = `<div style="font-family:Arial,sans-serif;max-width:640px;color:#111">
+<h2 style="margin:0 0 4px">🎬 ${clips.length} clips ready · ${esc(project)}</h2>
+<p style="margin:0 0 4px;color:#555">Best viral score <b>${best}%</b>${mins ? ` · took ${mins} min` : ''}${todo ? ` · ${esc(todo)}` : ''}</p>
+<p style="margin:0 0 12px;color:#888;font-size:12px">Source: ${esc(source)}</p>
+<table style="border-collapse:collapse;width:100%;border-top:1px solid #eee">${rows}</table>
+${noWm ? `<p style="color:#c0392b">⚠ ${noWm} clip(s) without the watermark — they won't be posted until you check them.</p>` : ''}
+<p style="color:#888;font-size:12px">Storage: ${usedGb} of ${db.studio.storageLimitGb} GB used.</p>
+<p><a href="${link}" style="background:#5b45e8;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Open the Studio</a></p></div>`;
+  await sendMail({ subject, text, html });
+}
+
+async function mailJobFailed(jobId: string) {
+  const db = await readDb();
+  const job = db.jobs.find((j) => j.id === jobId);
+  if (!job) return;
+  const project = db.projects.find((p) => p.id === job.projectId)?.name || 'Studio';
+  const source = job.source.kind === 'url' ? job.source.url : job.source.fileName;
+  await mailSafe(`Clipping failed · ${project}`,
+    `${job.error || 'The clipping engine stopped.'}\n\nSource: ${source}\n\nOpen the Studio and press Retry: ${APP_URL || ''}/studio\n`);
 }

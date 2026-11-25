@@ -15,7 +15,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!c?.file) return new Response('Not found', { status: 404 });
   const name = `${c.title || 'clip'}.mp4`;
 
-  if (new URL(req.url).searchParams.get('wm') === '1') {
+  // Clips made now already carry the watermark; only older ones are burned here.
+  if (new URL(req.url).searchParams.get('wm') === '1' && !c.watermarked) {
     const rel = path.relative(STUDIO_OUTPUT, c.file).split(path.sep);
     if (rel.length === 2 && !rel[0].startsWith('..')) {
       const r = await fetch(`${STUDIO_API}/api/nova/watermark/render`, {
